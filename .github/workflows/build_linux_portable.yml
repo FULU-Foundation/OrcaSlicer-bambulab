@@ -1,0 +1,439 @@
+name: Build Linux Portable
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  group: build-linux-portable-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CACHE_REV: v1
+
+jobs:
+  linux_ubuntu22:
+    name: Linux (ubuntu-22.04)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    env:
+      DIST_ID: ubuntu22.04
+      EVENT_TAG: ${{ github.event.release.tag_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: 'false'
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~4.3.0"
+          useLocalCache: true
+          useCloudCache: true
+
+      - name: Compute version
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${EVENT_TAG:-${GITHUB_REF_NAME:-}}"
+          if [[ "$tag" == v* ]]; then
+            ver="${tag#v}"
+          else
+            ver="git${GITHUB_SHA::7}"
+          fi
+          echo "VER=$ver" >> "$GITHUB_ENV"
+
+      - name: Compute deps cache key
+        shell: bash
+        run: |
+          set -euo pipefail
+          deps_tree="$(git rev-parse HEAD:deps 2>/dev/null || echo no-deps)"
+          recipe_hash="$(find build_linux.sh scripts/linux.d -type f -print0 | sort -z | xargs -0 cat | sha256sum | cut -c1-12)"
+          echo "DEPS_CACHE_KEY=linux-${DIST_ID}-deps-${deps_tree}-${recipe_hash}-${CACHE_REV}" >> "$GITHUB_ENV"
+
+      - name: Apt-Install Dependencies
+        uses: ./.github/actions/apt-install-deps
+
+      - name: Linux - cache deps
+        id: cache_linux_deps
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/deps/build/OrcaSlicer_dep
+          key: ${{ env.DEPS_CACHE_KEY }}
+
+      - name: Linux - build deps if missing
+        if: steps.cache_linux_deps.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            echo "Build Linux deps attempt $attempt"
+            if ./build_linux.sh -drlL; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Transient dependency download/build failure, retrying after backoff"
+              sleep $((attempt * 20))
+            fi
+          done
+          exit 1
+
+      - name: Linux - build + install
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build install-dir out
+          mkdir -p out
+
+          cmake -S . -B build -G "Ninja Multi-Config" \
+            -DCMAKE_PREFIX_PATH="${PWD}/deps/build/OrcaSlicer_dep/usr/local" \
+            -DSLIC3R_STATIC=1 \
+            -DSLIC3R_GTK=3 \
+            -DBBL_RELEASE_TO_PUBLIC=1 \
+            -DBBL_INTERNAL_TESTING=0 \
+            -DSLIC3R_PCH=ON \
+            -DORCA_TOOLS=ON \
+            -DCMAKE_INSTALL_PREFIX="${PWD}/install-dir"
+
+          cmake --build build --config Release --target install -j"$(nproc)"
+
+          ./scripts/run_gettext.sh
+          mkdir -p install-dir/resources/i18n
+          cp -a resources/i18n/. install-dir/resources/i18n/
+
+          app_bin=""
+          for candidate in \
+            "install-dir/bin/OrcaSlicer" \
+            "install-dir/bin/orca-slicer" \
+            "install-dir/OrcaSlicer" \
+            "install-dir/orca-slicer"; do
+            if [ -x "$candidate" ]; then
+              app_bin="${candidate#install-dir/}"
+              break
+            fi
+          done
+
+          if [ -z "$app_bin" ]; then
+            echo "ERROR: installed OrcaSlicer binary not found"
+            find install-dir -maxdepth 3 -type f | sort
+            exit 1
+          fi
+
+          echo "APP_BIN=$app_bin" >> "$GITHUB_ENV"
+          tar -C install-dir -czf "out/OrcaSlicer-BMCU_LinuxDir_${DIST_ID}_amd64_${VER}.tar.gz" .
+
+      - name: Linux - build AppImage (best-effort)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -x "build/src/build_linux_image.sh" ]; then
+            (cd build && ./src/build_linux_image.sh -i -R Release) || true
+          fi
+
+          appimage="$(find build -maxdepth 3 -type f -name '*.AppImage' | head -n 1 || true)"
+          if [ -n "$appimage" ]; then
+            mv "$appimage" "out/OrcaSlicer-BMCU_${DIST_ID}_amd64_${VER}.AppImage"
+            chmod +x "out/OrcaSlicer-BMCU_${DIST_ID}_amd64_${VER}.AppImage"
+          else
+            echo "WARN: no AppImage produced"
+          fi
+
+      - name: Linux - build .deb from install-dir
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev fakeroot binutils
+
+          rm -rf pkgroot debian
+          mkdir -p pkgroot/DEBIAN pkgroot/opt/orcaslicer pkgroot/usr/bin
+          cp -a install-dir/. pkgroot/opt/orcaslicer/
+
+          cat > pkgroot/usr/bin/orca-slicer-bmcu <<EOF
+          #!/bin/sh
+          exec /opt/orcaslicer/${APP_BIN} "$@"
+          EOF
+          chmod 0755 pkgroot/usr/bin/orca-slicer-bmcu
+
+          if [[ "${EVENT_TAG:-${GITHUB_REF_NAME:-}}" == v* ]]; then
+            deb_ver="${VER}~${DIST_ID}"
+          else
+            deb_ver="0.0~${VER}~${DIST_ID}"
+          fi
+
+          mkdir -p debian
+          cat > debian/control <<'EOF'
+          Source: orcaslicer-bmcu
+          Section: utils
+          Priority: optional
+          Maintainer: PJARCZAK CI <ci@invalid>
+          Standards-Version: 4.6.2
+
+          Package: orcaslicer-bmcu
+          Architecture: amd64
+          Description: dummy control for dpkg-shlibdeps
+          EOF
+
+          depends=""
+          if [ -x "pkgroot/opt/orcaslicer/${APP_BIN}" ]; then
+            set +e
+            out="$(dpkg-shlibdeps --ignore-missing-info -O \
+              -lpkgroot/opt/orcaslicer/bin \
+              -lpkgroot/opt/orcaslicer/lib \
+              -lpkgroot/opt/orcaslicer/lib64 \
+              pkgroot/opt/orcaslicer/${APP_BIN} 2>&1)"
+            rc=$?
+            set -e
+
+            if [ $rc -eq 0 ]; then
+              depends="$(printf "%s\n" "$out" | sed -n 's/^shlibs:Depends=//p' | tail -n 1)"
+            else
+              echo "WARN: dpkg-shlibdeps failed:"
+              echo "$out"
+            fi
+          fi
+
+          if [[ -z "$depends" ]]; then
+            depends="libc6, libstdc++6, libgcc-s1"
+          fi
+
+          cat > pkgroot/DEBIAN/control <<EOF
+          Package: orcaslicer-bmcu
+          Version: ${deb_ver}
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Maintainer: PJARCZAK CI <ci@invalid>
+          Depends: ${depends}
+          Description: OrcaSlicer BMCU build (installed in /opt/orcaslicer)
+           Wrapper: /usr/bin/orca-slicer-bmcu
+          EOF
+
+          fakeroot dpkg-deb --build pkgroot "out/OrcaSlicer-BMCU_${DIST_ID}_amd64_${VER}.deb"
+
+      - name: Linux - checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd out && sha256sum * > "SHA256SUMS_${DIST_ID}.txt")
+
+      - name: Upload artifacts (Linux ubuntu22.04)
+        uses: actions/upload-artifact@v7
+        with:
+          name: orcaslicer-bmcu-linux-${{ env.DIST_ID }}-${{ github.sha }}
+          path: out/
+          if-no-files-found: error
+
+  linux_ubuntu24:
+    name: Linux (ubuntu-24.04)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      DIST_ID: ubuntu24.04
+      EVENT_TAG: ${{ github.event.release.tag_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: 'false'
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~4.3.0"
+          useLocalCache: true
+          useCloudCache: true
+
+      - name: Compute version
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${EVENT_TAG:-${GITHUB_REF_NAME:-}}"
+          if [[ "$tag" == v* ]]; then
+            ver="${tag#v}"
+          else
+            ver="git${GITHUB_SHA::7}"
+          fi
+          echo "VER=$ver" >> "$GITHUB_ENV"
+
+      - name: Compute deps cache key
+        shell: bash
+        run: |
+          set -euo pipefail
+          deps_tree="$(git rev-parse HEAD:deps 2>/dev/null || echo no-deps)"
+          recipe_hash="$(find build_linux.sh scripts/linux.d -type f -print0 | sort -z | xargs -0 cat | sha256sum | cut -c1-12)"
+          echo "DEPS_CACHE_KEY=linux-${DIST_ID}-deps-${deps_tree}-${recipe_hash}-${CACHE_REV}" >> "$GITHUB_ENV"
+
+      - name: Apt-Install Dependencies
+        uses: ./.github/actions/apt-install-deps
+
+      - name: Linux - cache deps
+        id: cache_linux_deps
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/deps/build/OrcaSlicer_dep
+          key: ${{ env.DEPS_CACHE_KEY }}
+
+      - name: Linux - build deps if missing
+        if: steps.cache_linux_deps.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            echo "Build Linux deps attempt $attempt"
+            if ./build_linux.sh -drlL; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Transient dependency download/build failure, retrying after backoff"
+              sleep $((attempt * 20))
+            fi
+          done
+          exit 1
+
+      - name: Linux - build + install
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build install-dir out
+          mkdir -p out
+
+          cmake -S . -B build -G "Ninja Multi-Config" \
+            -DCMAKE_PREFIX_PATH="${PWD}/deps/build/OrcaSlicer_dep/usr/local" \
+            -DSLIC3R_STATIC=1 \
+            -DSLIC3R_GTK=3 \
+            -DBBL_RELEASE_TO_PUBLIC=1 \
+            -DBBL_INTERNAL_TESTING=0 \
+            -DSLIC3R_PCH=ON \
+            -DORCA_TOOLS=ON \
+            -DCMAKE_INSTALL_PREFIX="${PWD}/install-dir"
+
+          cmake --build build --config Release --target install -j"$(nproc)"
+
+          ./scripts/run_gettext.sh
+          mkdir -p install-dir/resources/i18n
+          cp -a resources/i18n/. install-dir/resources/i18n/
+
+          app_bin=""
+          for candidate in \
+            "install-dir/bin/OrcaSlicer" \
+            "install-dir/bin/orca-slicer" \
+            "install-dir/OrcaSlicer" \
+            "install-dir/orca-slicer"; do
+            if [ -x "$candidate" ]; then
+              app_bin="${candidate#install-dir/}"
+              break
+            fi
+          done
+
+          if [ -z "$app_bin" ]; then
+            echo "ERROR: installed OrcaSlicer binary not found"
+            find install-dir -maxdepth 3 -type f | sort
+            exit 1
+          fi
+
+          echo "APP_BIN=$app_bin" >> "$GITHUB_ENV"
+          tar -C install-dir -czf "out/OrcaSlicer-BMCU_LinuxDir_${DIST_ID}_amd64_${VER}.tar.gz" .
+
+      - name: Linux - build AppImage (best-effort)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -x "build/src/build_linux_image.sh" ]; then
+            (cd build && ./src/build_linux_image.sh -i -R Release) || true
+          fi
+
+          appimage="$(find build -maxdepth 3 -type f -name '*.AppImage' | head -n 1 || true)"
+          if [ -n "$appimage" ]; then
+            mv "$appimage" "out/OrcaSlicer-BMCU_${DIST_ID}_amd64_${VER}.AppImage"
+            chmod +x "out/OrcaSlicer-BMCU_${DIST_ID}_amd64_${VER}.AppImage"
+          else
+            echo "WARN: no AppImage produced"
+          fi
+
+      - name: Linux - build .deb from install-dir
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev fakeroot binutils
+
+          rm -rf pkgroot debian
+          mkdir -p pkgroot/DEBIAN pkgroot/opt/orcaslicer pkgroot/usr/bin
+          cp -a install-dir/. pkgroot/opt/orcaslicer/
+
+          cat > pkgroot/usr/bin/orca-slicer-bmcu <<EOF
+          #!/bin/sh
+          exec /opt/orcaslicer/${APP_BIN} "$@"
+          EOF
+          chmod 0755 pkgroot/usr/bin/orca-slicer-bmcu
+
+          if [[ "${EVENT_TAG:-${GITHUB_REF_NAME:-}}" == v* ]]; then
+            deb_ver="${VER}~${DIST_ID}"
+          else
+            deb_ver="0.0~${VER}~${DIST_ID}"
+          fi
+
+          mkdir -p debian
+          cat > debian/control <<'EOF'
+          Source: orcaslicer-bmcu
+          Section: utils
+          Priority: optional
+          Maintainer: PJARCZAK CI <ci@invalid>
+          Standards-Version: 4.6.2
+
+          Package: orcaslicer-bmcu
+          Architecture: amd64
+          Description: dummy control for dpkg-shlibdeps
+          EOF
+
+          depends=""
+          if [ -x "pkgroot/opt/orcaslicer/${APP_BIN}" ]; then
+            set +e
+            out="$(dpkg-shlibdeps --ignore-missing-info -O \
+              -lpkgroot/opt/orcaslicer/bin \
+              -lpkgroot/opt/orcaslicer/lib \
+              -lpkgroot/opt/orcaslicer/lib64 \
+              pkgroot/opt/orcaslicer/${APP_BIN} 2>&1)"
+            rc=$?
+            set -e
+
+            if [ $rc -eq 0 ]; then
+              depends="$(printf "%s\n" "$out" | sed -n 's/^shlibs:Depends=//p' | tail -n 1)"
+            else
+              echo "WARN: dpkg-shlibdeps failed:"
+              echo "$out"
+            fi
+          fi
+
+          if [[ -z "$depends" ]]; then
+            depends="libc6, libstdc++6, libgcc-s1"
+          fi
+
+          cat > pkgroot/DEBIAN/control <<EOF
+          Package: orcaslicer-bmcu
+          Version: ${deb_ver}
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Maintainer: PJARCZAK CI <ci@invalid>
+          Depends: ${depends}
+          Description: OrcaSlicer BMCU build (installed in /opt/orcaslicer)
+           Wrapper: /usr/bin/orca-slicer-bmcu
+          EOF
+
+          fakeroot dpkg-deb --build pkgroot "out/OrcaSlicer-BMCU_${DIST_ID}_amd64_${VER}.deb"
+
+      - name: Linux - checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd out && sha256sum * > "SHA256SUMS_${DIST_ID}.txt")
+
+      - name: Upload artifacts (Linux ubuntu24.04)
+        uses: actions/upload-artifact@v7
+        with:
+          name: orcaslicer-bmcu-linux-${{ env.DIST_ID }}-${{ github.sha }}
+          path: out/
+          if-no-files-found: error

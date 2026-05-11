@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/media/berlin/windows/Programy/OrcaSlicer-bambulab/tools/pjarczak_bambu_linux_host/.build-linux-host/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

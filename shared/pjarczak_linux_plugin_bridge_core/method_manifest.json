@@ -1,0 +1,970 @@
+[
+  {
+    "symbol": "bambu_network_check_debug_consistent",
+    "exported_name": "bambu_network_check_debug_consistent",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "local bridge always reports debug consistency"
+  },
+  {
+    "symbol": "bambu_network_get_version",
+    "exported_name": "bambu_network_get_version",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "returns bridge version"
+  },
+  {
+    "symbol": "bambu_network_create_agent",
+    "exported_name": "bambu_network_create_agent",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_destroy_agent",
+    "exported_name": "bambu_network_destroy_agent",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_init_log",
+    "exported_name": "bambu_network_init_log",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_set_config_dir",
+    "exported_name": "bambu_network_set_config_dir",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_set_cert_file",
+    "exported_name": "bambu_network_set_cert_file",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_set_country_code",
+    "exported_name": "bambu_network_set_country_code",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_start",
+    "exported_name": "bambu_network_start",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_set_on_ssdp_msg_fn",
+    "exported_name": "bambu_network_set_on_ssdp_msg_fn",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "bridge-wired",
+    "notes": "host callback fanout wired through event queue and local dispatch"
+  },
+  {
+    "symbol": "bambu_network_set_on_user_login_fn",
+    "exported_name": "bambu_network_set_on_user_login_fn",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "bridge-wired",
+    "notes": "host callback fanout wired through event queue and local dispatch"
+  },
+  {
+    "symbol": "bambu_network_set_on_printer_connected_fn",
+    "exported_name": "bambu_network_set_on_printer_connected_fn",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "bridge-wired",
+    "notes": "host callback fanout wired through event queue and local dispatch"
+  },
+  {
+    "symbol": "bambu_network_set_on_server_connected_fn",
+    "exported_name": "bambu_network_set_on_server_connected_fn",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "bridge-wired",
+    "notes": "host callback fanout wired through event queue and local dispatch"
+  },
+  {
+    "symbol": "bambu_network_set_on_http_error_fn",
+    "exported_name": "bambu_network_set_on_http_error_fn",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "bridge-wired",
+    "notes": "host callback fanout wired through event queue and local dispatch"
+  },
+  {
+    "symbol": "bambu_network_set_get_country_code_fn",
+    "exported_name": "bambu_network_set_get_country_code_fn",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "bridge-wired",
+    "notes": "callback bridged through request/reply RPC to local getter"
+  },
+  {
+    "symbol": "bambu_network_set_on_subscribe_failure_fn",
+    "exported_name": "bambu_network_set_on_subscribe_failure_fn",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "bridge-wired",
+    "notes": "host callback fanout wired through event queue and local dispatch"
+  },
+  {
+    "symbol": "bambu_network_set_on_message_fn",
+    "exported_name": "bambu_network_set_on_message_fn",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "bridge-wired",
+    "notes": "host callback fanout wired through event queue and local dispatch"
+  },
+  {
+    "symbol": "bambu_network_set_on_user_message_fn",
+    "exported_name": "bambu_network_set_on_user_message_fn",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "bridge-wired",
+    "notes": "host callback fanout wired through event queue and local dispatch"
+  },
+  {
+    "symbol": "bambu_network_set_on_local_connect_fn",
+    "exported_name": "bambu_network_set_on_local_connect_fn",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "bridge-wired",
+    "notes": "host callback fanout wired through event queue and local dispatch"
+  },
+  {
+    "symbol": "bambu_network_set_on_local_message_fn",
+    "exported_name": "bambu_network_set_on_local_message_fn",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "bridge-wired",
+    "notes": "host callback fanout wired through event queue and local dispatch"
+  },
+  {
+    "symbol": "bambu_network_set_queue_on_main_fn",
+    "exported_name": "bambu_network_set_queue_on_main_fn",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "bridge-wired",
+    "notes": "client-side queue_on_main dispatch retained and host callback path registered"
+  },
+  {
+    "symbol": "bambu_network_connect_server",
+    "exported_name": "bambu_network_connect_server",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_is_server_connected",
+    "exported_name": "bambu_network_is_server_connected",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_refresh_connection",
+    "exported_name": "bambu_network_refresh_connection",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_start_subscribe",
+    "exported_name": "bambu_network_start_subscribe",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_stop_subscribe",
+    "exported_name": "bambu_network_stop_subscribe",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_add_subscribe",
+    "exported_name": "bambu_network_add_subscribe",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_del_subscribe",
+    "exported_name": "bambu_network_del_subscribe",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_enable_multi_machine",
+    "exported_name": "bambu_network_enable_multi_machine",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_send_message",
+    "exported_name": "bambu_network_send_message",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_connect_printer",
+    "exported_name": "bambu_network_connect_printer",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_disconnect_printer",
+    "exported_name": "bambu_network_disconnect_printer",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_send_message_to_printer",
+    "exported_name": "bambu_network_send_message_to_printer",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_update_cert",
+    "exported_name": "bambu_network_update_cert",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_install_device_cert",
+    "exported_name": "bambu_network_install_device_cert",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_start_discovery",
+    "exported_name": "bambu_network_start_discovery",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_change_user",
+    "exported_name": "bambu_network_change_user",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough plus cache refresh"
+  },
+  {
+    "symbol": "bambu_network_is_user_login",
+    "exported_name": "bambu_network_is_user_login",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_user_logout",
+    "exported_name": "bambu_network_user_logout",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_get_user_id",
+    "exported_name": "bambu_network_get_user_id",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_get_user_name",
+    "exported_name": "bambu_network_get_user_name",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_get_user_avatar",
+    "exported_name": "bambu_network_get_user_avatar",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_get_user_nickanme",
+    "exported_name": "bambu_network_get_user_nickanme",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_build_login_cmd",
+    "exported_name": "bambu_network_build_login_cmd",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_build_logout_cmd",
+    "exported_name": "bambu_network_build_logout_cmd",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_build_login_info",
+    "exported_name": "bambu_network_build_login_info",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_ping_bind",
+    "exported_name": "bambu_network_ping_bind",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_bind_detect",
+    "exported_name": "bambu_network_bind_detect",
+    "area": "jobs",
+    "status": "implemented",
+    "stability": "experimental",
+    "notes": "detectResult struct mapping not done"
+  },
+  {
+    "symbol": "bambu_network_report_consent",
+    "exported_name": "bambu_network_report_consent",
+    "area": "jobs",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_set_server_callback",
+    "exported_name": "bambu_network_set_server_callback",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "bridge-wired",
+    "notes": "host callback fanout wired through event queue and local dispatch"
+  },
+  {
+    "symbol": "bambu_network_bind",
+    "exported_name": "bambu_network_bind",
+    "area": "jobs",
+    "status": "implemented",
+    "stability": "experimental",
+    "notes": "phase5: bridged through host job runtime with callback and cancel plumbing"
+  },
+  {
+    "symbol": "bambu_network_unbind",
+    "exported_name": "bambu_network_unbind",
+    "area": "jobs",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_get_bambulab_host",
+    "exported_name": "bambu_network_get_bambulab_host",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_get_user_selected_machine",
+    "exported_name": "bambu_network_get_user_selected_machine",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_set_user_selected_machine",
+    "exported_name": "bambu_network_set_user_selected_machine",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_start_print",
+    "exported_name": "bambu_network_start_print",
+    "area": "jobs",
+    "status": "implemented",
+    "stability": "experimental",
+    "notes": "phase5: bridged through host job runtime with callback and cancel plumbing"
+  },
+  {
+    "symbol": "bambu_network_start_local_print_with_record",
+    "exported_name": "bambu_network_start_local_print_with_record",
+    "area": "jobs",
+    "status": "implemented",
+    "stability": "experimental",
+    "notes": "phase5: bridged through host job runtime with callback and cancel plumbing"
+  },
+  {
+    "symbol": "bambu_network_start_send_gcode_to_sdcard",
+    "exported_name": "bambu_network_start_send_gcode_to_sdcard",
+    "area": "jobs",
+    "status": "implemented",
+    "stability": "experimental",
+    "notes": "phase5: bridged through host job runtime with callback and cancel plumbing"
+  },
+  {
+    "symbol": "bambu_network_start_local_print",
+    "exported_name": "bambu_network_start_local_print",
+    "area": "jobs",
+    "status": "implemented",
+    "stability": "experimental",
+    "notes": "phase5: bridged through host job runtime with callback and cancel plumbing"
+  },
+  {
+    "symbol": "bambu_network_start_sdcard_print",
+    "exported_name": "bambu_network_start_sdcard_print",
+    "area": "jobs",
+    "status": "implemented",
+    "stability": "experimental",
+    "notes": "phase5: bridged through host job runtime with callback and cancel plumbing"
+  },
+  {
+    "symbol": "bambu_network_get_user_presets",
+    "exported_name": "bambu_network_get_user_presets",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "nested map marshaled via json"
+  },
+  {
+    "symbol": "bambu_network_request_setting_id",
+    "exported_name": "bambu_network_request_setting_id",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "map and http code bridged via rpc"
+  },
+  {
+    "symbol": "bambu_network_put_setting",
+    "exported_name": "bambu_network_put_setting",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "map and http code bridged via rpc"
+  },
+  {
+    "symbol": "bambu_network_get_setting_list",
+    "exported_name": "bambu_network_get_setting_list",
+    "area": "jobs",
+    "status": "implemented",
+    "stability": "experimental",
+    "notes": "progress callback not bridged"
+  },
+  {
+    "symbol": "bambu_network_get_setting_list2",
+    "exported_name": "bambu_network_get_setting_list2",
+    "area": "jobs",
+    "status": "implemented",
+    "stability": "experimental",
+    "notes": "check, progress and cancel callbacks not bridged"
+  },
+  {
+    "symbol": "bambu_network_delete_setting",
+    "exported_name": "bambu_network_delete_setting",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_get_studio_info_url",
+    "exported_name": "bambu_network_get_studio_info_url",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "string return bridged"
+  },
+  {
+    "symbol": "bambu_network_set_extra_http_header",
+    "exported_name": "bambu_network_set_extra_http_header",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "map marshaling bridged"
+  },
+  {
+    "symbol": "bambu_network_get_my_message",
+    "exported_name": "bambu_network_get_my_message",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "http code/body out params bridged"
+  },
+  {
+    "symbol": "bambu_network_check_user_task_report",
+    "exported_name": "bambu_network_check_user_task_report",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "task_id and printable out params bridged"
+  },
+  {
+    "symbol": "bambu_network_get_user_print_info",
+    "exported_name": "bambu_network_get_user_print_info",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "http code/body out params bridged"
+  },
+  {
+    "symbol": "bambu_network_get_user_tasks",
+    "exported_name": "bambu_network_get_user_tasks",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "TaskQueryParams and body bridged"
+  },
+  {
+    "symbol": "bambu_network_get_printer_firmware",
+    "exported_name": "bambu_network_get_printer_firmware",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "http code/body out params bridged"
+  },
+  {
+    "symbol": "bambu_network_get_task_plate_index",
+    "exported_name": "bambu_network_get_task_plate_index",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "plate index out param bridged"
+  },
+  {
+    "symbol": "bambu_network_get_user_info",
+    "exported_name": "bambu_network_get_user_info",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "identifier out param bridged"
+  },
+  {
+    "symbol": "bambu_network_request_bind_ticket",
+    "exported_name": "bambu_network_request_bind_ticket",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "ticket out param bridged"
+  },
+  {
+    "symbol": "bambu_network_get_subtask_info",
+    "exported_name": "bambu_network_get_subtask_info",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "task_json/http outputs bridged"
+  },
+  {
+    "symbol": "bambu_network_get_slice_info",
+    "exported_name": "bambu_network_get_slice_info",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "slice_json out param bridged"
+  },
+  {
+    "symbol": "bambu_network_query_bind_status",
+    "exported_name": "bambu_network_query_bind_status",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "vector and http outputs bridged"
+  },
+  {
+    "symbol": "bambu_network_modify_printer_name",
+    "exported_name": "bambu_network_modify_printer_name",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_get_camera_url",
+    "exported_name": "bambu_network_get_camera_url",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "one-shot callback bridged with wait"
+  },
+  {
+    "symbol": "bambu_network_get_camera_url_for_golive",
+    "exported_name": "bambu_network_get_camera_url_for_golive",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "one-shot callback bridged with wait"
+  },
+  {
+    "symbol": "bambu_network_get_design_staffpick",
+    "exported_name": "bambu_network_get_design_staffpick",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "one-shot callback bridged with wait"
+  },
+  {
+    "symbol": "bambu_network_start_publish",
+    "exported_name": "bambu_network_start_publish",
+    "area": "jobs",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "job callback bridge with cancel support"
+  },
+  {
+    "symbol": "bambu_network_get_model_publish_url",
+    "exported_name": "bambu_network_get_model_publish_url",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "url out param bridged"
+  },
+  {
+    "symbol": "bambu_network_get_model_mall_home_url",
+    "exported_name": "bambu_network_get_model_mall_home_url",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "url out param bridged"
+  },
+  {
+    "symbol": "bambu_network_get_model_mall_detail_url",
+    "exported_name": "bambu_network_get_model_mall_detail_url",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "url out param bridged"
+  },
+  {
+    "symbol": "bambu_network_get_subtask",
+    "exported_name": "bambu_network_get_subtask",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "experimental",
+    "notes": "custom task object callback not bridged"
+  },
+  {
+    "symbol": "bambu_network_get_my_profile",
+    "exported_name": "bambu_network_get_my_profile",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "http code/body out params bridged"
+  },
+  {
+    "symbol": "bambu_network_get_my_token",
+    "exported_name": "bambu_network_get_my_token",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "http code/body out params bridged"
+  },
+  {
+    "symbol": "bambu_network_track_enable",
+    "exported_name": "bambu_network_track_enable",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_track_remove_files",
+    "exported_name": "bambu_network_track_remove_files",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_track_event",
+    "exported_name": "bambu_network_track_event",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_track_header",
+    "exported_name": "bambu_network_track_header",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_track_update_property",
+    "exported_name": "bambu_network_track_update_property",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_track_get_property",
+    "exported_name": "bambu_network_track_get_property",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "bambu_network_put_model_mall_rating",
+    "exported_name": "bambu_network_put_model_mall_rating",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "vector and out params bridged via rpc"
+  },
+  {
+    "symbol": "bambu_network_get_oss_config",
+    "exported_name": "bambu_network_get_oss_config",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "out params bridged via rpc"
+  },
+  {
+    "symbol": "bambu_network_put_rating_picture_oss",
+    "exported_name": "bambu_network_put_rating_picture_oss",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "in-out strings and out params bridged via rpc"
+  },
+  {
+    "symbol": "bambu_network_get_model_mall_rating",
+    "exported_name": "bambu_network_get_model_mall_rating",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "out params bridged via rpc"
+  },
+  {
+    "symbol": "bambu_network_get_mw_user_preference",
+    "exported_name": "bambu_network_get_mw_user_preference",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "one-shot callback bridged with wait"
+  },
+  {
+    "symbol": "bambu_network_get_mw_user_4ulist",
+    "exported_name": "bambu_network_get_mw_user_4ulist",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "one-shot callback bridged with wait"
+  },
+  {
+    "symbol": "bambu_network_get_hms_snapshot",
+    "exported_name": "bambu_network_get_hms_snapshot",
+    "area": "callbacks",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "one-shot callback bridged with wait"
+  },
+  {
+    "symbol": "Bambu_Create",
+    "exported_name": "Bambu_Create",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "Bambu_SetLogger",
+    "exported_name": "Bambu_SetLogger",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "logger messages copied in host and forwarded through tunnel events"
+  },
+  {
+    "symbol": "Bambu_Open",
+    "exported_name": "Bambu_Open",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "Bambu_StartStream",
+    "exported_name": "Bambu_StartStream",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "Bambu_StartStreamEx",
+    "exported_name": "Bambu_StartStreamEx",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "Bambu_GetStreamCount",
+    "exported_name": "Bambu_GetStreamCount",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "Bambu_GetStreamInfo",
+    "exported_name": "Bambu_GetStreamInfo",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "format_buffer marshaled and cached"
+  },
+  {
+    "symbol": "Bambu_GetDuration",
+    "exported_name": "Bambu_GetDuration",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "Bambu_Seek",
+    "exported_name": "Bambu_Seek",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "Bambu_ReadSample",
+    "exported_name": "Bambu_ReadSample",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "buffer marshaled as byte array"
+  },
+  {
+    "symbol": "Bambu_SendMessage",
+    "exported_name": "Bambu_SendMessage",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "Bambu_RecvMessage",
+    "exported_name": "Bambu_RecvMessage",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "ctrl/data marshaled via rpc"
+  },
+  {
+    "symbol": "Bambu_Close",
+    "exported_name": "Bambu_Close",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "Bambu_Destroy",
+    "exported_name": "Bambu_Destroy",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "Bambu_Init",
+    "exported_name": "Bambu_Init",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "Bambu_Deinit",
+    "exported_name": "Bambu_Deinit",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "rpc passthrough"
+  },
+  {
+    "symbol": "Bambu_GetLastErrorMsg",
+    "exported_name": "Bambu_GetLastErrorMsg",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "message copied via rpc and cached locally"
+  },
+  {
+    "symbol": "Bambu_FreeLogMsg",
+    "exported_name": "Bambu_FreeLogMsg",
+    "area": "source",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "no-op in forwarder; host frees vendor log messages after copying"
+  }
+]

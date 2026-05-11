@@ -1,0 +1,241 @@
+name: Build macOS with Linux bridge runtime
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  prepare_linux_bridge_runtime:
+    name: Prepare Linux bridge runtime
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: 'false'
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~4.3.0"
+          useLocalCache: true
+          useCloudCache: true
+
+      - name: Apt-Install Dependencies
+        uses: ./.github/actions/apt-install-deps
+
+      - name: Build Linux deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            echo "Build Linux deps attempt $attempt"
+            if ./build_linux.sh -drlL; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Transient dependency download/build failure, retrying after backoff"
+              sleep $((attempt * 20))
+            fi
+          done
+          exit 1
+
+      - name: Configure linux bridge host build
+        shell: bash
+        run: |
+          cmake -S . -B build -G "Ninja Multi-Config" -DORCA_TOOLS=ON
+
+      - name: Build linux host runtime
+        shell: bash
+        run: |
+          cmake --build build --config Release --target pjarczak_bambu_linux_host
+          bash tools/pjarczak_bambu_linux_host/package_linux_host_runtime.sh build
+          tar -czvf linux_host_runtime_${{ github.sha }}.tar.gz -C tools/pjarczak_bambu_linux_host/runtime linux-x86_64
+
+      - name: Upload linux host runtime artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux_host_runtime_${{ github.sha }}
+          path: ./linux_host_runtime_${{ github.sha }}.tar.gz
+          if-no-files-found: error
+
+  build_macos_arm64:
+    name: Build macOS arm64
+    runs-on: macos-14
+    needs: prepare_linux_bridge_runtime
+    env:
+      ORCA_UPDATER_SIG_KEY: ${{ secrets.ORCA_UPDATER_SIG_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: 'false'
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~4.3.0"
+          useLocalCache: true
+          useCloudCache: true
+
+      - name: Download linux host runtime artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: linux_host_runtime_${{ github.sha }}
+          path: ${{ github.workspace }}/linux_host_runtime_artifact
+
+      - name: Extract linux host runtime artifact on macOS arm64
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tools/pjarczak_bambu_linux_host/runtime"
+          tar -xzf "$GITHUB_WORKSPACE/linux_host_runtime_artifact/linux_host_runtime_${{ github.sha }}.tar.gz" -C "$GITHUB_WORKSPACE/tools/pjarczak_bambu_linux_host/runtime"
+
+      - name: Install mac tools
+        shell: bash
+        run: |
+          brew install automake texinfo libtool
+          brew list
+          mkdir -p "$GITHUB_WORKSPACE/deps/build/arm64"
+
+      - name: Build macOS arm64 deps
+        shell: bash
+        run: |
+          ./build_release_macos.sh -dx -1 -a arm64 -t 11.3
+
+      - name: Build macOS arm64 app bundle
+        shell: bash
+        run: |
+          ./build_release_macos.sh -s -n -x -1 -a arm64 -t 11.3
+
+      - name: Pack macOS arm64 app bundle
+        shell: bash
+        run: |
+          tar -czvf OrcaSlicer_Mac_bundle_arm64_${{ github.sha }}.tar.gz -C build/arm64 OrcaSlicer
+
+      - name: Upload macOS arm64 app bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: OrcaSlicer_Mac_bundle_arm64_${{ github.sha }}
+          path: ${{ github.workspace }}/OrcaSlicer_Mac_bundle_arm64_${{ github.sha }}.tar.gz
+          if-no-files-found: error
+
+  build_macos_x86_64:
+    name: Build macOS x86_64
+    runs-on: macos-14
+    needs: prepare_linux_bridge_runtime
+    env:
+      ORCA_UPDATER_SIG_KEY: ${{ secrets.ORCA_UPDATER_SIG_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: 'false'
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~4.3.0"
+          useLocalCache: true
+          useCloudCache: true
+
+      - name: Download linux host runtime artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: linux_host_runtime_${{ github.sha }}
+          path: ${{ github.workspace }}/linux_host_runtime_artifact
+
+      - name: Extract linux host runtime artifact on macOS x86_64
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tools/pjarczak_bambu_linux_host/runtime"
+          tar -xzf "$GITHUB_WORKSPACE/linux_host_runtime_artifact/linux_host_runtime_${{ github.sha }}.tar.gz" -C "$GITHUB_WORKSPACE/tools/pjarczak_bambu_linux_host/runtime"
+
+      - name: Install mac tools
+        shell: bash
+        run: |
+          brew install automake texinfo libtool
+          brew list
+          mkdir -p "$GITHUB_WORKSPACE/deps/build/x86_64"
+
+      - name: Build macOS x86_64 deps
+        shell: bash
+        run: |
+          ./build_release_macos.sh -dx -1 -a x86_64 -t 11.3
+
+      - name: Build macOS x86_64 app bundle
+        shell: bash
+        run: |
+          ./build_release_macos.sh -s -n -x -1 -a x86_64 -t 11.3
+
+      - name: Pack macOS x86_64 app bundle
+        shell: bash
+        run: |
+          tar -czvf OrcaSlicer_Mac_bundle_x86_64_${{ github.sha }}.tar.gz -C build/x86_64 OrcaSlicer
+
+      - name: Upload macOS x86_64 app bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: OrcaSlicer_Mac_bundle_x86_64_${{ github.sha }}
+          path: ${{ github.workspace }}/OrcaSlicer_Mac_bundle_x86_64_${{ github.sha }}.tar.gz
+          if-no-files-found: error
+
+  build_macos_universal:
+    name: Build macOS universal
+    runs-on: macos-14
+    needs:
+      - build_macos_arm64
+      - build_macos_x86_64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: 'false'
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~4.3.0"
+          useLocalCache: true
+          useCloudCache: true
+
+      - name: Download macOS app bundles
+        uses: actions/download-artifact@v8
+        with:
+          pattern: OrcaSlicer_Mac_bundle_*_${{ github.sha }}
+          path: ${{ github.workspace }}/mac_bundles
+
+      - name: Extract macOS app bundles
+        shell: bash
+        run: |
+          mkdir -p build/arm64 build/x86_64
+          arm_bundle=$(find "$GITHUB_WORKSPACE/mac_bundles/OrcaSlicer_Mac_bundle_arm64_${{ github.sha }}" -name '*.tar.gz' -print -quit)
+          x86_bundle=$(find "$GITHUB_WORKSPACE/mac_bundles/OrcaSlicer_Mac_bundle_x86_64_${{ github.sha }}" -name '*.tar.gz' -print -quit)
+          tar -xzvf "$arm_bundle" -C "$GITHUB_WORKSPACE/build/arm64"
+          tar -xzvf "$x86_bundle" -C "$GITHUB_WORKSPACE/build/x86_64"
+
+      - name: Build universal mac app bundle
+        shell: bash
+        run: |
+          ./build_release_macos.sh -u -x -1 -a universal -t 11.3
+
+      - name: Create DMG without runtime validation
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/build/universal/OrcaSlicer_dmg"
+          rm -rf "$GITHUB_WORKSPACE/build/universal/OrcaSlicer_dmg"/*
+          cp -R "$GITHUB_WORKSPACE/build/universal/OrcaSlicer/OrcaSlicer.app" "$GITHUB_WORKSPACE/build/universal/OrcaSlicer_dmg/"
+          ln -sfn /Applications "$GITHUB_WORKSPACE/build/universal/OrcaSlicer_dmg/Applications"
+          ver=$(grep 'set(SoftFever_VERSION' version.inc | cut -d '"' -f2)
+          hdiutil create -volname "OrcaSlicer" -srcfolder "$GITHUB_WORKSPACE/build/universal/OrcaSlicer_dmg" -ov -format UDZO "OrcaSlicer_Mac_universal_V${ver}.dmg"
+
+      - name: Explain skipped hosted runtime validation
+        shell: bash
+        run: |
+          echo "Hosted macOS runners do not support nested virtualization, so bundled Lima runtime validation is intentionally skipped here."
+
+      - name: Upload macOS universal DMG
+        uses: actions/upload-artifact@v7
+        with:
+          name: OrcaSlicer_Mac_universal_${{ github.sha }}
+          path: ${{ github.workspace }}/OrcaSlicer_Mac_universal_V*.dmg
+          if-no-files-found: error

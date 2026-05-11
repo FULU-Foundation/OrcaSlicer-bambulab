@@ -1,0 +1,73 @@
+#!/bin/sh
+set -eu
+
+HOST_PATH="${1:-}"
+if [ -z "$HOST_PATH" ]; then
+    echo "missing host path" >&2
+    exit 127
+fi
+
+runtime_dir_default() {
+    printf '%s
+' "$HOME/Library/Application Support/OrcaSlicer/macos-bridge/runtime"
+}
+
+PLUGIN_DIR="${PJARCZAK_BAMBU_PLUGIN_DIR:-}"
+if [ -z "$PLUGIN_DIR" ]; then
+    PLUGIN_DIR=$(runtime_dir_default)
+fi
+
+trim_file() {
+    path="$1"
+    if [ ! -f "$path" ]; then
+        return 1
+    fi
+    LC_ALL=C tr -d '\r' < "$path" | head -n 1 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+}
+
+INSTANCE="${PJARCZAK_MAC_LIMA_INSTANCE:-}"
+if [ -z "$INSTANCE" ]; then
+    INSTANCE=$(trim_file "$PLUGIN_DIR/pjarczak_lima_instance.txt" || true)
+fi
+if [ -z "$INSTANCE" ]; then
+    INSTANCE="orcaslicer-bambu-network"
+fi
+
+find_limactl() {
+    if [ -n "${PJARCZAK_LIMACTL:-}" ] && [ -x "${PJARCZAK_LIMACTL}" ]; then
+        printf '%s\n' "$PJARCZAK_LIMACTL"
+        return 0
+    fi
+
+    if command -v limactl >/dev/null 2>&1; then
+        command -v limactl
+        return 0
+    fi
+
+    for candidate in \
+        "$HOME/Library/Application Support/OrcaSlicer/macos-bridge/lima/bin/limactl" \
+        "/opt/homebrew/bin/limactl" \
+        "/usr/local/bin/limactl"
+    do
+        if [ -x "$candidate" ]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+LIMACTL=$(find_limactl || true)
+if [ -z "$LIMACTL" ]; then
+    echo "limactl not found" >&2
+    exit 127
+fi
+
+exec "$LIMACTL" shell "$INSTANCE" -- /usr/bin/env \
+    PJARCZAK_BAMBU_PLUGIN_DIR="$PLUGIN_DIR" \
+    PJARCZAK_BAMBU_NETWORK_SO="$PLUGIN_DIR/libbambu_networking.so" \
+    PJARCZAK_BAMBU_SOURCE_SO="$PLUGIN_DIR/libBambuSource.so" \
+    PJARCZAK_BAMBU_LIVE555_SO="$PLUGIN_DIR/liblive555.so" \
+    PJARCZAK_EXPECTED_BAMBU_NETWORK_VERSION="${PJARCZAK_EXPECTED_BAMBU_NETWORK_VERSION:-}" \
+    "$HOST_PATH"

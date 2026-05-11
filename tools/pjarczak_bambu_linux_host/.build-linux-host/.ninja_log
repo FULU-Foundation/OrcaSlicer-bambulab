@@ -1,0 +1,4 @@
+# ninja log v7
+1	2582	1775255030737199347	CMakeFiles/pjarczak_bambu_linux_host.dir/main.cpp.o	402c960a92b3e3d5
+2	4540	1775255030739606945	CMakeFiles/pjarczak_bambu_linux_host.dir/media/berlin/windows/Programy/OrcaSlicer-bambulab/src/slic3r/Utils/PJarczakLinuxBridge/PJarczakLinuxSoBridgeRpcProtocol.cpp.o	8a8523772a0103ff
+1	4920	1775255490060837821	CMakeFiles/pjarczak_bambu_linux_host.dir/media/berlin/windows/Programy/OrcaSlicer-bambulab/src/slic3r/Utils/PJarczakLinuxBridge/PJarczakLinuxBridgeConfig.cpp.o	770a95d9e227ea2b

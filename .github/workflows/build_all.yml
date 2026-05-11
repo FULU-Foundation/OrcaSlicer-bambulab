@@ -1,0 +1,55 @@
+name: Build all (manual only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build-deps-only:
+        description: 'Only build dependencies (bypasses caching)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_linux:
+    strategy:
+      fail-fast: false
+    uses: ./.github/workflows/build_check_cache.yml
+    with:
+      os: ${{ vars.SELF_HOSTED && 'orca-lnx-server' || 'ubuntu-24.04' }}
+      build-deps-only: ${{ inputs.build-deps-only || false }}
+    secrets: inherit
+
+  build_windows:
+    uses: ./.github/workflows/build_check_cache.yml
+    with:
+      os: ${{ vars.SELF_HOSTED && 'orca-win-server' || 'windows-latest' }}
+      build-deps-only: ${{ inputs.build-deps-only || false }}
+    secrets: inherit
+
+  build_macos_arch:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - arm64
+          - x86_64
+    uses: ./.github/workflows/build_check_cache.yml
+    with:
+      os: ${{ vars.SELF_HOSTED && 'orca-macos-arm64' || 'macos-14' }}
+      arch: ${{ matrix.arch }}
+      build-deps-only: ${{ inputs.build-deps-only || false }}
+    secrets: inherit
+
+  build_macos_universal:
+    name: Build macOS Universal
+    needs: build_macos_arch
+    if: ${{ !cancelled() && needs.build_macos_arch.result == 'success' && !inputs.build-deps-only }}
+    uses: ./.github/workflows/build_orca.yml
+    with:
+      os: ${{ vars.SELF_HOSTED && 'orca-macos-arm64' || 'macos-14' }}
+      arch: universal
+      macos-combine-only: true
+    secrets: inherit

@@ -1,0 +1,61 @@
+#!/bin/sh
+set -eu
+
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+CACHE_FILE="$DIR/.selected_host_abi"
+
+run_probe() {
+    bin="$1"
+    [ -x "$bin" ] || return 1
+    LD_LIBRARY_PATH="$DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+    PJARCZAK_BAMBU_PROBE_LOG_DIR="${PJARCZAK_BAMBU_PROBE_LOG_DIR:-$DIR}" \
+    PJARCZAK_BAMBU_COUNTRY_CODE="${PJARCZAK_BAMBU_COUNTRY_CODE:-PL}" \
+    "$bin" --probe-auth >/dev/null 2>&1
+}
+
+choose_bin() {
+    forced="${PJARCZAK_FORCE_HOST_ABI:-}"
+    if [ -n "$forced" ] && [ -x "$DIR/pjarczak_bambu_linux_host_$forced" ]; then
+        printf '%s\n' "$DIR/pjarczak_bambu_linux_host_$forced"
+        return 0
+    fi
+
+    if [ -f "$CACHE_FILE" ]; then
+        cached=$(cat "$CACHE_FILE" 2>/dev/null || true)
+        if [ -n "$cached" ] && [ -x "$DIR/pjarczak_bambu_linux_host_$cached" ]; then
+            printf '%s\n' "$DIR/pjarczak_bambu_linux_host_$cached"
+            return 0
+        fi
+    fi
+
+    for abi in abi1 abi0; do
+        if run_probe "$DIR/pjarczak_bambu_linux_host_$abi"; then
+            printf '%s' "$abi" > "$CACHE_FILE"
+            printf '%s\n' "$DIR/pjarczak_bambu_linux_host_$abi"
+            return 0
+        fi
+    done
+
+    if [ -x "$DIR/pjarczak_bambu_linux_host_abi1" ]; then
+        printf '%s\n' "$DIR/pjarczak_bambu_linux_host_abi1"
+        return 0
+    fi
+    if [ -x "$DIR/pjarczak_bambu_linux_host_abi0" ]; then
+        printf '%s\n' "$DIR/pjarczak_bambu_linux_host_abi0"
+        return 0
+    fi
+    return 1
+}
+
+BIN=$(choose_bin) || {
+    echo "no compatible host ABI variant found" >&2
+    exit 127
+}
+
+if [ "${1:-}" = "--print-bin" ]; then
+    printf '%s\n' "$BIN"
+    exit 0
+fi
+
+export LD_LIBRARY_PATH="$DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec "$BIN" "$@"

@@ -1,0 +1,3 @@
+/media/berlin/windows/Programy/OrcaSlicer-bambulab/tools/pjarczak_bambu_linux_host/.build-linux-host/CMakeFiles/pjarczak_bambu_linux_host.dir
+/media/berlin/windows/Programy/OrcaSlicer-bambulab/tools/pjarczak_bambu_linux_host/.build-linux-host/CMakeFiles/edit_cache.dir
+/media/berlin/windows/Programy/OrcaSlicer-bambulab/tools/pjarczak_bambu_linux_host/.build-linux-host/CMakeFiles/rebuild_cache.dir

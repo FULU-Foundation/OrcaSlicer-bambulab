@@ -1,0 +1,84 @@
+name: My Build All
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+concurrency:
+  group: my-build-all-${{ github.event.release.tag_name || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_windows:
+    uses: ./.github/workflows/build_windows_bridge.yml
+    secrets: inherit
+
+  build_linux_portable:
+    uses: ./.github/workflows/build_linux_portable.yml
+    secrets: inherit
+
+  build_linux_appimage:
+    uses: ./.github/workflows/build_linux_appimage.yml
+    secrets: inherit
+
+  build_macos:
+    uses: ./.github/workflows/build_macos_bridge.yml
+    secrets: inherit
+
+  publish_release:
+    name: Publish release assets
+    needs:
+      - build_windows
+      - build_linux_portable
+      - build_linux_appimage
+      - build_macos
+    if: ${{ github.event_name == 'push' || github.event_name == 'release' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: release-artifacts
+
+      - name: Flatten release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-files
+          find release-artifacts -type f -print0 | while IFS= read -r -d '' file; do
+            cp "$file" release-files/"$(basename "$file")"
+          done
+          ls -lah release-files
+
+      - name: Resolve tag
+        shell: bash
+        env:
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          tag="${EVENT_TAG:-${GITHUB_REF_NAME:-}}"
+          if [[ -z "$tag" ]]; then
+            echo "ERROR: tag could not be resolved"
+            exit 1
+          fi
+          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+
+      - name: Create or update GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          generate_release_notes: true
+          overwrite_files: true
+          files: |
+            release-files/*
