@@ -1,0 +1,88 @@
+name: Linux Bridge Runtime Reusable
+
+on:
+  workflow_call:
+    inputs:
+      include_wsl_rootfs:
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  prepare_linux_bridge_runtime:
+    name: Prepare Linux bridge runtime
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: 'false'
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~4.3.0"
+          useLocalCache: true
+          useCloudCache: true
+
+      - name: Apt-Install Dependencies
+        uses: ./.github/actions/apt-install-deps
+
+      - name: Build Linux deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            echo "Build Linux deps attempt $attempt"
+            if ./build_linux.sh -drlL; then
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Transient dependency download/build failure, retrying after backoff"
+              sleep $((attempt * 20))
+            else
+              exit 1
+            fi
+          done
+
+      - name: Configure linux bridge host build
+        shell: bash
+        run: |
+          cmake -S . -B build -G "Ninja Multi-Config" -DORCA_TOOLS=ON
+
+      - name: Build linux host runtime and optional WSL rootfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build --config Release --target pjarczak_bambu_linux_host
+          bash tools/pjarczak_bambu_linux_host/package_linux_host_runtime.sh build
+
+          if [[ "${{ inputs.include_wsl_rootfs }}" == 'true' ]]; then
+            bash tools/pjarczak_bambu_runtime/rootfs/build_windows_wsl_rootfs.sh tools/pjarczak_bambu_runtime/rootfs/windows-wsl2-rootfs.tar
+          fi
+
+          tar -czvf linux_host_runtime_${{ github.sha }}.tar.gz -C tools/pjarczak_bambu_linux_host/runtime linux-x86_64
+
+          if [[ "${{ inputs.include_wsl_rootfs }}" == 'true' ]]; then
+            tar -czvf wsl_rootfs_${{ github.sha }}.tar.gz -C tools/pjarczak_bambu_runtime/rootfs windows-wsl2-rootfs.tar
+          fi
+
+      - name: Show packaged linux bridge runtime files
+        shell: bash
+        run: |
+          find tools/pjarczak_bambu_linux_host/runtime/linux-x86_64 -maxdepth 1 -type f | sort
+
+      - name: Upload linux host runtime artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux_host_runtime_${{ github.sha }}
+          path: ./linux_host_runtime_${{ github.sha }}.tar.gz
+          if-no-files-found: error
+
+      - name: Upload WSL rootfs artifact
+        if: ${{ inputs.include_wsl_rootfs }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: wsl_rootfs_${{ github.sha }}
+          path: ./wsl_rootfs_${{ github.sha }}.tar.gz
+          if-no-files-found: error

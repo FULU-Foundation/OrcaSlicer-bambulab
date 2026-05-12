@@ -98,7 +98,18 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
             mkdir -p ${{ github.workspace }}/deps/build/destdir
-            ./build_linux.sh -drlL
+            for attempt in 1 2 3; do
+              echo "Build Linux deps attempt $attempt"
+              if ./build_linux.sh -drlL; then
+                break
+              fi
+              if [ "$attempt" -lt 3 ]; then
+                echo "Transient dependency download/build failure, retrying after backoff"
+                sleep $((attempt * 20))
+              else
+                exit 1
+              fi
+            done
             cd deps/build
             tar -czvf OrcaSlicer_dep_ubuntu_$(date +"%Y%m%d").tar.gz destdir
 
