@@ -50,10 +50,13 @@ jobs:
           tag="${EVENT_TAG:-${GITHUB_REF_NAME:-}}"
           if [[ "$tag" == v* ]]; then
             ver="${tag#v}"
+            deb_ver="${ver}~${DIST_ID}"
           else
             ver="git${GITHUB_SHA::7}"
+            deb_ver="0.0~${ver}~${DIST_ID}"
           fi
           echo "VER=$ver" >> "$GITHUB_ENV"
+          echo "DEB_VERSION=$deb_ver" >> "$GITHUB_ENV"
 
       - name: Compute deps cache key
         shell: bash
@@ -125,8 +128,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf build install-dir out pkgroot debian
+          rm -rf build install-dir install-stage out
           mkdir -p out
+
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev fakeroot binutils
 
           cmake -S . -B build -G "Ninja Multi-Config" \
             -DCMAKE_PREFIX_PATH="${PWD}/deps/build/OrcaSlicer_dep/usr/local" \
@@ -136,33 +142,18 @@ jobs:
             -DBBL_INTERNAL_TESTING=0 \
             -DSLIC3R_PCH=ON \
             -DORCA_TOOLS=ON \
-            -DCMAKE_INSTALL_PREFIX="${PWD}/install-dir"
+            -DORCA_BMCU_LINUX_PACKAGE=ON \
+            -DORCA_CPACK_DIST_ID="${DIST_ID}" \
+            -DORCA_CPACK_FILE_VERSION="${VER}" \
+            -DORCA_CPACK_PACKAGE_VERSION="${DEB_VERSION}" \
+            -DORCA_CPACK_ARCH=amd64 \
+            -DCMAKE_INSTALL_PREFIX=/opt/orcaslicer
 
-          cmake --build build --config Release --target install -j"$(nproc)"
+          cmake --build build --config Release -j"$(nproc)"
+          DESTDIR="${PWD}/install-stage" cmake --install build --config Release --prefix /opt/orcaslicer
 
-          ./scripts/run_gettext.sh
-          mkdir -p install-dir/resources/i18n
-          cp -a resources/i18n/. install-dir/resources/i18n/
-
-          app_bin=""
-          for candidate in \
-            "install-dir/bin/OrcaSlicer" \
-            "install-dir/bin/orca-slicer" \
-            "install-dir/OrcaSlicer" \
-            "install-dir/orca-slicer"; do
-            if [ -x "$candidate" ]; then
-              app_bin="${candidate#install-dir/}"
-              break
-            fi
-          done
-
-          if [ -z "$app_bin" ]; then
-            echo "ERROR: installed OrcaSlicer binary not found"
-            find install-dir -maxdepth 3 -type f | sort
-            exit 1
-          fi
-
-          tar -C install-dir -czf "out/OrcaSlicer-BMCU_LinuxDir_${DIST_ID}_amd64_${VER}.tar.gz" .
+          mv install-stage/opt/orcaslicer install-dir
+          cmake -E chdir install-dir cmake -E tar czf "../out/OrcaSlicer-BMCU_LinuxDir_${DIST_ID}_amd64_${VER}.tar.gz" --format=gnutar .
 
           if [ -x "build/src/build_linux_image.sh" ]; then
             (cd build && ./src/build_linux_image.sh -i -R Release) || true
@@ -177,73 +168,7 @@ jobs:
             echo "WARN: no AppImage produced"
           fi
 
-          sudo apt-get update
-          sudo apt-get install -y dpkg-dev fakeroot binutils
-
-          mkdir -p pkgroot/DEBIAN pkgroot/opt/orcaslicer pkgroot/usr/bin
-          cp -a install-dir/. pkgroot/opt/orcaslicer/
-
-          cat > pkgroot/usr/bin/orca-slicer-bmcu <<WRAPPER_EOF
-          #!/bin/sh
-          exec /opt/orcaslicer/${app_bin} "\$@"
-          WRAPPER_EOF
-          chmod 0755 pkgroot/usr/bin/orca-slicer-bmcu
-
-          if [[ "${EVENT_TAG:-${GITHUB_REF_NAME:-}}" == v* ]]; then
-            deb_ver="${VER}~${DIST_ID}"
-          else
-            deb_ver="0.0~${VER}~${DIST_ID}"
-          fi
-
-          mkdir -p debian
-          cat > debian/control <<'SOURCE_EOF'
-          Source: orcaslicer-bmcu
-          Section: utils
-          Priority: optional
-          Maintainer: PJARCZAK CI <ci@invalid>
-          Standards-Version: 4.6.2
-
-          Package: orcaslicer-bmcu
-          Architecture: amd64
-          Description: dummy control for dpkg-shlibdeps
-          SOURCE_EOF
-
-          depends=""
-          if [ -x "pkgroot/opt/orcaslicer/${app_bin}" ]; then
-            set +e
-            out="$(dpkg-shlibdeps --ignore-missing-info -O \
-              -lpkgroot/opt/orcaslicer/bin \
-              -lpkgroot/opt/orcaslicer/lib \
-              -lpkgroot/opt/orcaslicer/lib64 \
-              pkgroot/opt/orcaslicer/${app_bin} 2>&1)"
-            rc=$?
-            set -e
-
-            if [ $rc -eq 0 ]; then
-              depends="$(printf "%s\n" "$out" | sed -n 's/^shlibs:Depends=//p' | tail -n 1)"
-            else
-              echo "WARN: dpkg-shlibdeps failed:"
-              echo "$out"
-            fi
-          fi
-
-          if [[ -z "$depends" ]]; then
-            depends="libc6, libstdc++6, libgcc-s1"
-          fi
-
-          cat > pkgroot/DEBIAN/control <<CONTROL_EOF
-          Package: orcaslicer-bmcu
-          Version: ${deb_ver}
-          Section: utils
-          Priority: optional
-          Architecture: amd64
-          Maintainer: PJARCZAK CI <ci@invalid>
-          Depends: ${depends}
-          Description: OrcaSlicer BMCU build (installed in /opt/orcaslicer)
-           Wrapper: /usr/bin/orca-slicer-bmcu
-          CONTROL_EOF
-
-          fakeroot dpkg-deb --build pkgroot "out/OrcaSlicer-BMCU_${DIST_ID}_amd64_${VER}.deb"
+          cpack --config build/CPackConfig.cmake -G DEB -B out
 
       - name: Linux - checksums (AppImage)
         if: ${{ inputs.mode == 'appimage' }}
