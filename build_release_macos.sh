@@ -96,6 +96,16 @@ if [ -z "$OSX_DEPLOYMENT_TARGET" ]; then
   export OSX_DEPLOYMENT_TARGET="11.3"
 fi
 
+# Export SDKROOT so autotools-based dependencies (e.g. GMP, MPFR) can locate
+# libSystem. Without this, `ld: library 'System' not found` on macOS 15+ SDKs.
+if [ -z "$SDKROOT" ] && command -v xcrun >/dev/null 2>&1; then
+  _detected_sdkroot="$(xcrun --show-sdk-path 2>/dev/null || true)"
+  if [ -n "$_detected_sdkroot" ]; then
+    export SDKROOT="$_detected_sdkroot"
+  fi
+  unset _detected_sdkroot
+fi
+
 if [ -z "$CMAKE_IGNORE_PREFIX_PATH" ]; then
   export CMAKE_IGNORE_PREFIX_PATH="/opt/local:/usr/local:/opt/homebrew"
 fi
@@ -115,6 +125,7 @@ echo " - BUILD_CONFIG: $BUILD_CONFIG"
 echo " - BUILD_TARGET: $BUILD_TARGET"
 echo " - CMAKE_GENERATOR: $SLICER_CMAKE_GENERATOR for Slicer, $DEPS_CMAKE_GENERATOR for deps"
 echo " - OSX_DEPLOYMENT_TARGET: $OSX_DEPLOYMENT_TARGET"
+echo " - SDKROOT: ${SDKROOT:-<unset>}"
 echo " - CMAKE_IGNORE_PREFIX_PATH: $CMAKE_IGNORE_PREFIX_PATH"
 echo
 
