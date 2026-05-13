@@ -49,3 +49,7 @@ internal_docs/
 *.flatpak
 /flatpak-repo/
 /.idea/
+CLAUDE.local.md
+.tools/
+dist/
+tools/pjarczak_bambu_linux_host/runtime/
