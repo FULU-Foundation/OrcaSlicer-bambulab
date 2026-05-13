@@ -13,18 +13,19 @@ export REQUIRED_DEV_PACKAGES=(
     git
     glew
     gstreamer
-    gstreamermm
     gtk3
     libmspack
     libsecret
     libspnav
     mesa
+    nasm
     ninja
     openssl
     texinfo
     wayland-protocols
-    webkit2gtk
+    webkit2gtk-4.1
     wget
+    yasm
 )
 
 if [[ -n "$UPDATE_LIB" ]]
