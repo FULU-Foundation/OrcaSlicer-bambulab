@@ -74,7 +74,19 @@ if (UNIX AND NOT APPLE AND EXISTS "${PJARCZAK_LINUX_HOST_DIR}/main.cpp" AND EXIS
             target_link_libraries(${target_name} PRIVATE nlohmann_json::nlohmann_json)
         endif()
         target_link_libraries(${target_name} PRIVATE boost_headeronly ${CMAKE_DL_LIBS} OpenSSL::Crypto)
-        target_link_options(${target_name} PRIVATE -static-libstdc++ -static-libgcc)
+        # Intentionally NOT using -static-libstdc++ / -static-libgcc here.
+        #
+        # The host process dlopen()s libbambu_networking.so / libBambuSource.so,
+        # which dynamically link against the system libstdc++.so.6. Functions
+        # exported from those libraries return std::string by value (see
+        # PJarczakBambuNetworkForwarderExports.cpp), which means the host and
+        # the plugin .so must share a single libstdc++ runtime — otherwise the
+        # two std::string implementations differ in layout/allocator behavior
+        # and corrupt each other's objects when control crosses the boundary.
+        # Statically linking libstdc++ into the host produced exactly that
+        # crash pattern on Apple Silicon (SIGBUS under Rosetta, std::bad_alloc
+        # / stack-canary failures under qemu-user). Letting the host link
+        # dynamically against the same libstdc++.so.6 the plugin uses fixes it.
         set_target_properties(${target_name} PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
             BUILD_WITH_INSTALL_RPATH TRUE

@@ -136,7 +136,19 @@ bool use_bridge_network_module()
 
 bool source_module_is_network_module()
 {
+#if defined(__WXMAC__) || defined(__APPLE__)
+    // On macOS the "source module" hosts the native BambuPlayer Objective-C
+    // class used by wxMediaCtrl2 to render the printer's camera feed. The
+    // network bridge dylib does NOT export that class — only the original
+    // libBambuSource.dylib does. So even with the bridge enabled for
+    // networking, the source module must remain libBambuSource.dylib;
+    // returning true here would cause get_bambu_source_entry() to hand
+    // wxMediaCtrl2 the bridge dylib, where the BambuPlayer symbol is missing
+    // (m_error = -2, no player created, video preview stalls).
+    return false;
+#else
     return use_bridge_network_module();
+#endif
 }
 
 bool should_force_linux_plugin_payload(const std::string& plugin_name)

@@ -38,12 +38,6 @@ bool RpcClient::start_locked()
     if (m_proc && m_proc->child.running())
         return true;
 
-    if (m_reader.joinable()) {
-        m_state_mutex.unlock();
-        m_reader.join();
-        m_state_mutex.lock();
-    }
-
     try {
         auto spec = build_default_launch_spec();
         if (spec.argv.empty()) {
@@ -102,6 +96,14 @@ void RpcClient::stop()
     }
 
     if (proc) {
+        // Close our ends of the stdio pipes before terminating. The bridge
+        // host is reached via a wrapper script and `limactl shell`, and when
+        // the inner guest binary wedges, terminating the local child does not
+        // always propagate to the read pipe — leaving reader_loop blocked in
+        // read_raw_frame and stop() deadlocked at join. Closing the parent's
+        // read fd forces the in-flight read to return.
+        try { proc->in.pipe().close(); } catch (...) {}
+        try { proc->out.pipe().close(); } catch (...) {}
         try {
             if (proc->child.running())
                 proc->child.terminate();
@@ -124,7 +126,17 @@ void RpcClient::stop()
 bool RpcClient::ensure_started()
 {
     {
-        std::lock_guard<std::mutex> lock(m_state_mutex);
+        std::unique_lock<std::mutex> lock(m_state_mutex);
+        // If a previous reader thread exited (process died or stop() ran)
+        // but the std::thread handle was never joined, drain it here.
+        // Joining must happen with the state mutex released so the reader
+        // cannot deadlock waiting to re-enter the lock.
+        if (m_reader.joinable() && (!m_proc || !m_proc->child.running())) {
+            std::thread stale = std::move(m_reader);
+            lock.unlock();
+            stale.join();
+            lock.lock();
+        }
         if (!start_locked())
             return false;
     }

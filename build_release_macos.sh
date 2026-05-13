@@ -4,67 +4,122 @@ set -e
 set -o pipefail
 SECONDS=0
 
+# Autotools-based dependencies (GMP, MPFR) don't inherit
+# CMAKE_OSX_DEPLOYMENT_TARGET and pick up the host SDK by default. On macOS
+# 15+ with Xcode 16+, that means they need SDKROOT pointed at the active SDK
+# explicitly or their configure step fails. Export the active SDK path if the
+# user hasn't already set one.
+export SDKROOT="${SDKROOT:-$(xcrun --show-sdk-path)}"
+
+# Check that the build-time tools the deps tree and slicer build need are
+# actually on PATH. Failing here with an actionable `brew install` line is
+# friendlier than letting the autotools deps step blow up halfway through
+# with a cryptic "makeinfo: command not found" or similar. Pairs of
+# "<tool>:<brew-package>"; the special "(Xcode Command Line Tools)" pseudo-
+# package surfaces a CLT-install reminder rather than a brew command.
+check_build_tools() {
+    local pair tool pkg
+    local missing_brew=""
+    local missing_xcode=0
+    for pair in \
+        "cmake:cmake" \
+        "ninja:ninja" \
+        "autoconf:autoconf" \
+        "automake:automake" \
+        "libtool:libtool" \
+        "pkg-config:pkg-config" \
+        "makeinfo:texinfo" \
+        "xcrun:(Xcode Command Line Tools)"; do
+        tool="${pair%%:*}"
+        pkg="${pair#*:}"
+        if command -v "$tool" >/dev/null 2>&1; then
+            continue
+        fi
+        if [ "${pkg#\(}" != "$pkg" ]; then
+            missing_xcode=1
+            echo "missing: $tool — install ${pkg}" >&2
+        else
+            missing_brew="${missing_brew:+$missing_brew }${pkg}"
+        fi
+    done
+    if [ -n "$missing_brew" ]; then
+        echo "missing build tools: ${missing_brew}" >&2
+        echo "install with:" >&2
+        echo "  brew install ${missing_brew}" >&2
+    fi
+    if [ -n "$missing_brew" ] || [ "$missing_xcode" -ne 0 ]; then
+        exit 1
+    fi
+}
+check_build_tools
+
 while getopts ":dpa:snt:xbc:i:1Tuh" opt; do
-  case "${opt}" in
-    d )
-        export BUILD_TARGET="deps"
-        ;;
-    p )
-        export PACK_DEPS="1"
-        ;;
-    a )
-        export ARCH="$OPTARG"
-        ;;
-    s )
-        export BUILD_TARGET="slicer"
-        ;;
-    n )
-        export NIGHTLY_BUILD="1"
-        ;;
-    t )
-        export OSX_DEPLOYMENT_TARGET="$OPTARG"
-        ;;
-    x )
-        export SLICER_CMAKE_GENERATOR="Ninja Multi-Config"
-        export SLICER_BUILD_TARGET="all"
-        export DEPS_CMAKE_GENERATOR="Ninja"
-        ;;
-    b )
-        export BUILD_ONLY="1"
-        ;;
-    c )
-        export BUILD_CONFIG="$OPTARG"
-        ;;
-    i )
-        export CMAKE_IGNORE_PREFIX_PATH="${CMAKE_IGNORE_PREFIX_PATH:+$CMAKE_IGNORE_PREFIX_PATH;}$OPTARG"
-        ;;
-    1 )
-        export CMAKE_BUILD_PARALLEL_LEVEL=1
-        ;;
-    T )
-        export BUILD_TESTS="1"
-        ;;
-    u )
-        export BUILD_TARGET="universal"
-        ;;
-    h ) echo "Usage: ./build_release_macos.sh [-d]"
-        echo "   -d: Build deps only"
-        echo "   -a: Set ARCHITECTURE (arm64 or x86_64 or universal)"
-        echo "   -s: Build slicer only"
-        echo "   -u: Build universal app only (requires existing arm64 and x86_64 app bundles)"
-        echo "   -n: Nightly build"
-        echo "   -t: Specify minimum version of the target platform, default is 11.3"
-        echo "   -x: Use Ninja Multi-Config CMake generator, default is Xcode"
-        echo "   -b: Build without reconfiguring CMake"
-        echo "   -c: Set CMake build configuration, default is Release"
-        echo "   -i: Add a prefix to ignore during CMake dependency discovery (repeatable), defaults to /opt/local:/usr/local:/opt/homebrew"
-        echo "   -1: Use single job for building"
-        echo "   -T: Build and run tests"
-        exit 0
-        ;;
-    * )
-        ;;
-  esac
+    case "${opt}" in
+        d)
+            export BUILD_TARGET="deps"
+            ;;
+        p)
+            export PACK_DEPS="1"
+            ;;
+        a)
+            export ARCH="$OPTARG"
+            ;;
+        s)
+            export BUILD_TARGET="slicer"
+            ;;
+        n)
+            export NIGHTLY_BUILD="1"
+            ;;
+        t)
+            export OSX_DEPLOYMENT_TARGET="$OPTARG"
+            ;;
+        x)
+            # Opt into the Xcode generator. Default is Ninja because the
+            # Xcode generator requires a full Xcode.app install (not just
+            # the Command Line Tools), and tends to fail with
+            # "No CMAKE_C_COMPILER could be found" on machines that have
+            # only CLT.
+            export SLICER_CMAKE_GENERATOR="Xcode"
+            export SLICER_BUILD_TARGET="ALL_BUILD"
+            export DEPS_CMAKE_GENERATOR="Unix Makefiles"
+            ;;
+        b)
+            export BUILD_ONLY="1"
+            ;;
+        c)
+            export BUILD_CONFIG="$OPTARG"
+            ;;
+        i)
+            export CMAKE_IGNORE_PREFIX_PATH="${CMAKE_IGNORE_PREFIX_PATH:+$CMAKE_IGNORE_PREFIX_PATH;}$OPTARG"
+            ;;
+        1)
+            export CMAKE_BUILD_PARALLEL_LEVEL=1
+            ;;
+        T)
+            export BUILD_TESTS="1"
+            ;;
+        u)
+            export BUILD_TARGET="universal"
+            ;;
+        h)
+            echo "Usage: ./build_release_macos.sh [-d]"
+            echo "   -d: Build deps only"
+            echo "   -a: Set ARCHITECTURE (arm64 or x86_64 or universal)"
+            echo "   -s: Build slicer only"
+            echo "   -u: Build universal app only (requires existing arm64 and x86_64 app bundles)"
+            echo "   -n: Nightly build"
+            echo "   -t: Specify minimum version of the target platform, default is 11.3"
+            echo "   -x: Use the Xcode CMake generator (default is Ninja; Xcode generator needs a full Xcode.app install, Ninja works with just Command Line Tools)"
+            echo "   -b: Build without reconfiguring CMake"
+            echo "   -c: Set CMake build configuration, default is Release"
+            echo "   -i: Add a prefix to ignore during CMake dependency discovery (repeatable), defaults to /opt/local:/usr/local:/opt/homebrew"
+            echo "   -1: Use single job for building"
+            echo "   -T: Build and run tests"
+            exit 0
+            ;;
+        *)
+            ;;
+    esac
 done
 
 if [ -z "$ARCH" ]; then
@@ -73,40 +128,40 @@ if [ -z "$ARCH" ]; then
 fi
 
 if [ -z "$BUILD_CONFIG" ]; then
-  export BUILD_CONFIG="Release"
+    export BUILD_CONFIG="Release"
 fi
 
 if [ -z "$BUILD_TARGET" ]; then
-  export BUILD_TARGET="all"
+    export BUILD_TARGET="all"
 fi
 
 if [ -z "$SLICER_CMAKE_GENERATOR" ]; then
-  export SLICER_CMAKE_GENERATOR="Xcode"
+    export SLICER_CMAKE_GENERATOR="Ninja Multi-Config"
 fi
 
 if [ -z "$SLICER_BUILD_TARGET" ]; then
-  export SLICER_BUILD_TARGET="ALL_BUILD"
+    export SLICER_BUILD_TARGET="all"
 fi
 
 if [ -z "$DEPS_CMAKE_GENERATOR" ]; then
-  export DEPS_CMAKE_GENERATOR="Unix Makefiles"
+    export DEPS_CMAKE_GENERATOR="Ninja"
 fi
 
 if [ -z "$OSX_DEPLOYMENT_TARGET" ]; then
-  export OSX_DEPLOYMENT_TARGET="11.3"
+    export OSX_DEPLOYMENT_TARGET="11.3"
 fi
 
 if [ -z "$CMAKE_IGNORE_PREFIX_PATH" ]; then
-  export CMAKE_IGNORE_PREFIX_PATH="/opt/local:/usr/local:/opt/homebrew"
+    export CMAKE_IGNORE_PREFIX_PATH="/opt/local:/usr/local:/opt/homebrew"
 fi
 
 CMAKE_VERSION=$(cmake --version | head -1 | sed -E 's/[^0-9]*([0-9]+).*/\1/')
 if [ "$CMAKE_VERSION" -ge 4 ] 2>/dev/null; then
-  export CMAKE_POLICY_VERSION_MINIMUM=3.5
-  export CMAKE_POLICY_COMPAT="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
-  echo "Detected CMake 4.x, adding compatibility flag (env + cmake arg)"
+    export CMAKE_POLICY_VERSION_MINIMUM=3.5
+    export CMAKE_POLICY_COMPAT="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+    echo "Detected CMake 4.x, adding compatibility flag (env + cmake arg)"
 else
-  export CMAKE_POLICY_COMPAT=""
+    export CMAKE_POLICY_COMPAT=""
 fi
 
 echo "Build params:"
@@ -204,7 +259,7 @@ build_deps() {
                 mkdir -p "$DEPS"
                 cd "$DEPS_BUILD_DIR"
                 if [ "1." != "$BUILD_ONLY". ]; then
-                    cmake "${DEPS_DIR}"                         -G "${DEPS_CMAKE_GENERATOR}"                         -DCMAKE_BUILD_TYPE="$BUILD_CONFIG"                         -DCMAKE_OSX_ARCHITECTURES:STRING="${_ARCH}"                         -DCMAKE_OSX_DEPLOYMENT_TARGET="${OSX_DEPLOYMENT_TARGET}"                         -DCMAKE_IGNORE_PREFIX_PATH="${CMAKE_IGNORE_PREFIX_PATH}"                         ${CMAKE_POLICY_COMPAT}
+                    cmake "${DEPS_DIR}" -G "${DEPS_CMAKE_GENERATOR}" -DCMAKE_BUILD_TYPE="$BUILD_CONFIG" -DCMAKE_OSX_ARCHITECTURES:STRING="${_ARCH}" -DCMAKE_OSX_DEPLOYMENT_TARGET="${OSX_DEPLOYMENT_TARGET}" -DCMAKE_IGNORE_PREFIX_PATH="${CMAKE_IGNORE_PREFIX_PATH}" ${CMAKE_POLICY_COMPAT}
                 fi
                 cmake --build . --config "$BUILD_CONFIG" --target deps
             )
@@ -234,7 +289,7 @@ build_slicer() {
                 mkdir -p "$PROJECT_BUILD_DIR"
                 cd "$PROJECT_BUILD_DIR"
                 if [ "1." != "$BUILD_ONLY". ]; then
-                    cmake "${PROJECT_DIR}"                         -G "${SLICER_CMAKE_GENERATOR}"                         -DORCA_TOOLS=ON                         ${ORCA_UPDATER_SIG_KEY:+-DORCA_UPDATER_SIG_KEY="$ORCA_UPDATER_SIG_KEY"}                         ${BUILD_TESTS:+-DBUILD_TESTS=ON}                         -DCMAKE_BUILD_TYPE="$BUILD_CONFIG"                         -DCMAKE_OSX_ARCHITECTURES="${_ARCH}"                         -DCMAKE_OSX_DEPLOYMENT_TARGET="${OSX_DEPLOYMENT_TARGET}"                         -DCMAKE_IGNORE_PREFIX_PATH="${CMAKE_IGNORE_PREFIX_PATH}"                         ${CMAKE_POLICY_COMPAT}
+                    cmake "${PROJECT_DIR}" -G "${SLICER_CMAKE_GENERATOR}" -DORCA_TOOLS=ON ${ORCA_UPDATER_SIG_KEY:+-DORCA_UPDATER_SIG_KEY="$ORCA_UPDATER_SIG_KEY"} ${BUILD_TESTS:+-DBUILD_TESTS=ON} -DCMAKE_BUILD_TYPE="$BUILD_CONFIG" -DCMAKE_OSX_ARCHITECTURES="${_ARCH}" -DCMAKE_OSX_DEPLOYMENT_TARGET="${OSX_DEPLOYMENT_TARGET}" -DCMAKE_IGNORE_PREFIX_PATH="${CMAKE_IGNORE_PREFIX_PATH}" ${CMAKE_POLICY_COMPAT}
                 fi
                 cmake --build . --config "$BUILD_CONFIG" --target "$SLICER_BUILD_TARGET"
                 cmake --install . --config "$BUILD_CONFIG"
@@ -362,4 +417,4 @@ fi
 elapsed=$SECONDS
 printf "
 Build completed in %dh %dm %ds
-" $((elapsed/3600)) $((elapsed%3600/60)) $((elapsed%60))
+" $((elapsed / 3600)) $((elapsed % 3600 / 60)) $((elapsed % 60))

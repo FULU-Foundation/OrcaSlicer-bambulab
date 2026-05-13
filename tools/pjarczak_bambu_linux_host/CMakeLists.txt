@@ -44,9 +44,14 @@ function(add_host_variant target_name abi_value)
         OpenSSL::Crypto
         ${CMAKE_DL_LIBS}
     )
-    if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        target_link_options(${target_name} PRIVATE -static-libstdc++ -static-libgcc)
-    endif()
+    # Do NOT use -static-libstdc++ / -static-libgcc here. The host dlopen()s
+    # libbambu_networking.so / libBambuSource.so, which dynamically link
+    # libstdc++.so.6 and export functions returning std::string by value.
+    # Two libstdc++ instances in one process (one statically embedded, one
+    # dynamically loaded) produce std::string layout/allocator mismatches and
+    # corrupt memory when control crosses the boundary — observed as SIGBUS
+    # under Rosetta and std::bad_alloc / stack-canary failures under qemu-user
+    # on Apple Silicon.
 endfunction()
 
 add_host_variant(pjarczak_bambu_linux_host_abi1 1)

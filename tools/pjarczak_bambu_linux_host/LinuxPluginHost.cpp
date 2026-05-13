@@ -718,10 +718,30 @@ nlohmann::json LinuxPluginHost::handle(const std::string& method, const nlohmann
 {
     using namespace BBL;
 
+    // Env-guarded full-RPC tracing. Set ORCA_LOG_ALL_RPC=1 to log every
+    // incoming method + its eventual response (for the handlers below) to
+    // stderr. The upstream code only logs a few hand-picked methods, which
+    // hides login/auth/cloud-connect bugs because none of those handlers
+    // are on that whitelist.
+    const bool trace_all = std::getenv("ORCA_LOG_ALL_RPC") != nullptr;
+    if (trace_all)
+        host_log_json("rpc.in", {{"method", method}, {"payload", payload}});
+
     clear_thread_reply_binary();
 
-    if (method == "bridge.poll_events")
-        return drain_events(payload.value("limit", 64U));
+    if (method == "bridge.poll_events") {
+        auto r = drain_events(payload.value("limit", 64U));
+        // Async events from the .so (on_server_connected, on_http_error, etc.)
+        // surface here. They're the only window into the .so's MQTT/cloud
+        // status. Gated behind ORCA_LOG_ALL_RPC, and only emitted when
+        // something actually arrived to avoid 1-Hz noise from idle polling.
+        if (trace_all && r.is_object()) {
+            auto it = r.find("events");
+            if (it != r.end() && it->is_array() && !it->empty())
+                host_log_json("bridge.poll_events", r);
+        }
+        return r;
+    }
 
     if (method == "bridge.ping")
         return {{"ok", true}, {"value", "pong"}};
@@ -878,8 +898,22 @@ nlohmann::json LinuxPluginHost::handle(const std::string& method, const nlohmann
     }
     if (method == "net.init_log") { auto f = net<int (*)(void*)>("bambu_network_init_log"); auto a = lookup_agent(); return f && a ? nlohmann::json{{"ok", true}, {"value", f(a)}} : not_supported(method); }
     if (method == "net.start") { auto f = net<int (*)(void*)>("bambu_network_start"); auto a = lookup_agent(); return f && a ? nlohmann::json{{"ok", true}, {"value", f(a)}} : not_supported(method); }
-    if (method == "net.connect_server") { auto f = net<int (*)(void*)>("bambu_network_connect_server"); auto a = lookup_agent(); return f && a ? nlohmann::json{{"ok", true}, {"value", f(a)}} : not_supported(method); }
-    if (method == "net.is_server_connected") { auto f = net<bool (*)(void*)>("bambu_network_is_server_connected"); auto a = lookup_agent(); return f && a ? nlohmann::json{{"ok", true}, {"value", f(a)}} : not_supported(method); }
+    if (method == "net.connect_server") {
+        auto f = net<int (*)(void*)>("bambu_network_connect_server");
+        auto a = lookup_agent();
+        if (!f || !a) return not_supported(method);
+        nlohmann::json r{{"ok", true}, {"value", f(a)}};
+        if (trace_all) host_log_json("net.connect_server", r);
+        return r;
+    }
+    if (method == "net.is_server_connected") {
+        auto f = net<bool (*)(void*)>("bambu_network_is_server_connected");
+        auto a = lookup_agent();
+        if (!f || !a) return not_supported(method);
+        nlohmann::json r{{"ok", true}, {"value", f(a)}};
+        if (trace_all) host_log_json("net.is_server_connected", r);
+        return r;
+    }
     if (method == "net.refresh_connection") { auto f = net<int (*)(void*)>("bambu_network_refresh_connection"); auto a = lookup_agent(); return f && a ? nlohmann::json{{"ok", true}, {"value", f(a)}} : not_supported(method); }
     if (method == "net.start_subscribe") { auto f = net<int (*)(void*, std::string)>("bambu_network_start_subscribe"); auto a = lookup_agent(); return f && a ? nlohmann::json{{"ok", true}, {"value", f(a, payload.value("module", std::string()))}} : not_supported(method); }
     if (method == "net.stop_subscribe") { auto f = net<int (*)(void*, std::string)>("bambu_network_stop_subscribe"); auto a = lookup_agent(); return f && a ? nlohmann::json{{"ok", true}, {"value", f(a, payload.value("module", std::string()))}} : not_supported(method); }
@@ -1015,9 +1049,30 @@ nlohmann::json LinuxPluginHost::handle(const std::string& method, const nlohmann
     if (method == "net.get_user_name") { auto f = net<std::string (*)(void*)>("bambu_network_get_user_name"); auto a = lookup_agent(); return f && a ? nlohmann::json{{"ok", true}, {"value", f(a)}} : not_supported(method); }
     if (method == "net.get_user_avatar") { auto f = net<std::string (*)(void*)>("bambu_network_get_user_avatar"); auto a = lookup_agent(); return f && a ? nlohmann::json{{"ok", true}, {"value", f(a)}} : not_supported(method); }
     if (method == "net.get_user_nickname") { auto f = net<std::string (*)(void*)>("bambu_network_get_user_nickanme"); auto a = lookup_agent(); return f && a ? nlohmann::json{{"ok", true}, {"value", f(a)}} : not_supported(method); }
-    if (method == "net.build_login_cmd") { auto f = net<std::string (*)(void*)>("bambu_network_build_login_cmd"); auto a = lookup_agent(); return f && a ? nlohmann::json{{"ok", true}, {"value", f(a)}} : not_supported(method); }
-    if (method == "net.build_logout_cmd") { auto f = net<std::string (*)(void*)>("bambu_network_build_logout_cmd"); auto a = lookup_agent(); return f && a ? nlohmann::json{{"ok", true}, {"value", f(a)}} : not_supported(method); }
-    if (method == "net.build_login_info") { auto f = net<std::string (*)(void*)>("bambu_network_build_login_info"); auto a = lookup_agent(); return f && a ? nlohmann::json{{"ok", true}, {"value", f(a)}} : not_supported(method); }
+    if (method == "net.build_login_cmd") {
+        auto f = net<std::string (*)(void*)>("bambu_network_build_login_cmd");
+        auto a = lookup_agent();
+        if (!f || !a) return not_supported(method);
+        nlohmann::json r{{"ok", true}, {"value", f(a)}};
+        if (trace_all) host_log_json("net.build_login_cmd", r);
+        return r;
+    }
+    if (method == "net.build_logout_cmd") {
+        auto f = net<std::string (*)(void*)>("bambu_network_build_logout_cmd");
+        auto a = lookup_agent();
+        if (!f || !a) return not_supported(method);
+        nlohmann::json r{{"ok", true}, {"value", f(a)}};
+        if (trace_all) host_log_json("net.build_logout_cmd", r);
+        return r;
+    }
+    if (method == "net.build_login_info") {
+        auto f = net<std::string (*)(void*)>("bambu_network_build_login_info");
+        auto a = lookup_agent();
+        if (!f || !a) return not_supported(method);
+        nlohmann::json r{{"ok", true}, {"value", f(a)}};
+        if (trace_all) host_log_json("net.build_login_info", r);
+        return r;
+    }
     if (method == "net.ping_bind") { auto f = net<int (*)(void*, std::string)>("bambu_network_ping_bind"); auto a = lookup_agent(); return f && a ? nlohmann::json{{"ok", true}, {"value", f(a, payload.value("ping_code", std::string()))}} : not_supported(method); }
     if (method == "net.bind_detect") { auto f = net<int (*)(void*, std::string, std::string, detectResult&)>("bambu_network_bind_detect"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); detectResult det; const int ret = f(a, payload.value("dev_ip", std::string()), payload.value("sec_link", std::string()), det); return {{"ok", true}, {"value", ret}, {"detect", {{"result_msg", det.result_msg}, {"command", det.command}, {"dev_id", det.dev_id}, {"model_id", det.model_id}, {"dev_name", det.dev_name}, {"version", det.version}, {"bind_state", det.bind_state}, {"connect_type", det.connect_type}}}}; }
     if (method == "net.report_consent") { auto f = net<int (*)(void*, std::string)>("bambu_network_report_consent"); auto a = lookup_agent(); return f && a ? nlohmann::json{{"ok", true}, {"value", f(a, payload.value("expand", std::string()))}} : not_supported(method); }
@@ -1178,8 +1233,22 @@ nlohmann::json LinuxPluginHost::handle(const std::string& method, const nlohmann
     if (method == "net.get_user_tasks") { auto f = net<int (*)(void*, TaskQueryParams, std::string*)>("bambu_network_get_user_tasks"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); auto params = task_query_from_json(payload.value("params", nlohmann::json::object())); std::string http_body; const int ret = f(a, params, &http_body); return {{"ok", true}, {"value", ret}, {"http_body", http_body}}; }
     if (method == "net.get_subtask_info") { auto f = net<int (*)(void*, std::string, std::string*, unsigned int*, std::string*)>("bambu_network_get_subtask_info"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); std::string task_json; unsigned int http_code = 0; std::string http_body; const int ret = f(a, payload.value("subtask_id", std::string()), &task_json, &http_code, &http_body); return {{"ok", true}, {"value", ret}, {"task_json", task_json}, {"http_code", http_code}, {"http_body", http_body}}; }
     if (method == "net.get_slice_info") { auto f = net<int (*)(void*, std::string, std::string, int, std::string*)>("bambu_network_get_slice_info"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); std::string slice_json; const int ret = f(a, payload.value("project_id", std::string()), payload.value("profile_id", std::string()), payload.value("plate_index", 0), &slice_json); return {{"ok", true}, {"value", ret}, {"slice_json", slice_json}}; }
-    if (method == "net.get_camera_url") { auto f = net<int (*)(void*, std::string, std::function<void(std::string)>)>("bambu_network_get_camera_url"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); return wait_string_callback([&](auto cb) { return f(a, payload.value("dev_id", std::string()), cb); }); }
-    if (method == "net.get_camera_url_for_golive") { auto f = net<int (*)(void*, std::string, std::string, std::function<void(std::string)>)>("bambu_network_get_camera_url_for_golive"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); return wait_string_callback([&](auto cb) { return f(a, payload.value("dev_id", std::string()), payload.value("sdev_id", std::string()), cb); }); }
+    if (method == "net.get_camera_url") {
+        auto f = net<int (*)(void*, std::string, std::function<void(std::string)>)>("bambu_network_get_camera_url");
+        auto a = lookup_agent();
+        if (!f || !a) return not_supported(method);
+        auto r = wait_string_callback([&](auto cb) { return f(a, payload.value("dev_id", std::string()), cb); });
+        if (trace_all) host_log_json("net.get_camera_url", r);
+        return r;
+    }
+    if (method == "net.get_camera_url_for_golive") {
+        auto f = net<int (*)(void*, std::string, std::string, std::function<void(std::string)>)>("bambu_network_get_camera_url_for_golive");
+        auto a = lookup_agent();
+        if (!f || !a) return not_supported(method);
+        auto r = wait_string_callback([&](auto cb) { return f(a, payload.value("dev_id", std::string()), payload.value("sdev_id", std::string()), cb); });
+        if (trace_all) host_log_json("net.get_camera_url_for_golive", r);
+        return r;
+    }
     if (method == "net.get_design_staffpick") { auto f = net<int (*)(void*, int, int, std::function<void(std::string)>)>("bambu_network_get_design_staffpick"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); return wait_string_callback([&](auto cb) { return f(a, payload.value("offset", 0), payload.value("limit", 0), cb); }); }
     if (method == "net.get_model_publish_url") { auto f = net<int (*)(void*, std::string*)>("bambu_network_get_model_publish_url"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); std::string url; const int ret = f(a, &url); return {{"ok", true}, {"value", ret}, {"url", url}}; }
     if (method == "net.get_model_mall_home_url") { auto f = net<int (*)(void*, std::string*)>("bambu_network_get_model_mall_home_url"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); std::string url; const int ret = f(a, &url); return {{"ok", true}, {"value", ret}, {"url", url}}; }
