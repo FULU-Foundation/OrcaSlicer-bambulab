@@ -54,15 +54,34 @@ namespace pt = boost::property_tree;
 namespace {
 
 constexpr int AUTO_IGNORED_PRINT_ERROR_0500409D = 0x0500409D;
+constexpr int AUTO_IGNORED_PRINT_ERROR_0501409D = 0x0501409D;
+constexpr int AUTO_IGNORED_PRINT_ERROR_0502409D = 0x0502409D;
+constexpr int AUTO_IGNORED_PRINT_ERROR_0503409D = 0x0503409D;
 
 inline bool is_auto_ignored_print_error(int error_code)
 {
-    return error_code == AUTO_IGNORED_PRINT_ERROR_0500409D;
+    switch (error_code) {
+    case AUTO_IGNORED_PRINT_ERROR_0500409D:
+    case AUTO_IGNORED_PRINT_ERROR_0501409D:
+    case AUTO_IGNORED_PRINT_ERROR_0502409D:
+    case AUTO_IGNORED_PRINT_ERROR_0503409D:
+        return true;
+    default:
+        return false;
+    }
 }
 
-inline bool is_auto_ignored_print_error_code_string(const std::string& error_code)
+inline bool is_auto_ignored_print_error_code_string(const std::string& raw_error_code)
 {
-    return boost::to_upper_copy(error_code) == "0500409D";
+    std::string error_code = boost::to_upper_copy(raw_error_code);
+    if (error_code.size() >= 8) {
+        error_code = error_code.substr(0, 8);
+    }
+
+    return error_code == "0500409D" ||
+           error_code == "0501409D" ||
+           error_code == "0502409D" ||
+           error_code == "0503409D";
 }
 
 inline std::string build_hms_long_error_code(unsigned attr, unsigned code)
@@ -111,11 +130,31 @@ inline void auto_ignore_print_error_if_needed(Slic3r::MachineObject* obj)
 
     if (!active_error) {
         obj->last_auto_ignored_print_error_ = 0;
+        obj->last_auto_ignored_print_error_command_at_ = {};
+        obj->last_auto_ignored_print_error_retry_at_ = {};
         return;
     }
 
-    if (obj->last_auto_ignored_print_error_ != active_error) {
-        BOOST_LOG_TRIVIAL(info) << "auto ignore print_error 0500-409D for dev_id=" << obj->get_dev_id();
+    const auto now = std::chrono::steady_clock::now();
+    const bool is_new_error = obj->last_auto_ignored_print_error_ != active_error;
+
+    const bool command_due =
+        is_new_error ||
+        obj->last_auto_ignored_print_error_command_at_.time_since_epoch().count() == 0 ||
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            now - obj->last_auto_ignored_print_error_command_at_).count() >= 1500;
+
+    const bool retry_due =
+        (is_new_error && !obj->is_in_printing_status(obj->print_status)) ||
+        (!is_new_error &&
+         (obj->last_auto_ignored_print_error_retry_at_.time_since_epoch().count() == 0 ||
+          std::chrono::duration_cast<std::chrono::milliseconds>(
+              now - obj->last_auto_ignored_print_error_retry_at_).count() >= 2500));
+
+    if (command_due) {
+        BOOST_LOG_TRIVIAL(info)
+            << "auto ignore print_error 050x-409D for dev_id=" << obj->get_dev_id()
+            << ", err=" << obj->get_error_code_str(active_error);
 
         if (!obj->job_id_.empty()) {
             obj->command_hms_ignore(std::to_string(active_error), obj->job_id_);
@@ -123,19 +162,37 @@ inline void auto_ignore_print_error_if_needed(Slic3r::MachineObject* obj)
         if (!obj->subtask_id_.empty()) {
             obj->command_clean_print_error(obj->subtask_id_, active_error);
         }
-        obj->command_clean_print_error_uiop(active_error);
 
-        bool retried_via_ui = false;
-        if (auto* manager = Slic3r::GUI::wxGetApp().getDeviceManager()) {
-            retried_via_ui = manager->trigger_auto_retry_print_ui_callback(obj->get_dev_id());
+        obj->command_clean_print_error_uiop(active_error);
+        obj->command_request_push_all();
+
+        obj->last_auto_ignored_print_error_ = active_error;
+        obj->last_auto_ignored_print_error_command_at_ = now;
+
+        if (is_new_error) {
+            obj->last_auto_ignored_print_error_retry_at_ = now;
         }
-        if (!retried_via_ui) {
+    }
+
+    if (retry_due) {
+        bool retry_sent = false;
+
+        if (auto* manager = Slic3r::GUI::wxGetApp().getDeviceManager()) {
+            retry_sent = manager->trigger_auto_retry_print_ui_callback(obj->get_dev_id());
+        }
+
+        if (!retry_sent) {
             if (auto* agent = Slic3r::GUI::wxGetApp().getAgent()) {
-                agent->retry_last_print_request(obj->get_dev_id());
+                retry_sent = agent->retry_last_print_request(obj->get_dev_id());
             }
         }
 
-        obj->last_auto_ignored_print_error_ = active_error;
+        BOOST_LOG_TRIVIAL(info)
+            << "auto retry last print after 050x-409D for dev_id="
+            << obj->get_dev_id()
+            << ", sent=" << retry_sent;
+
+        obj->last_auto_ignored_print_error_retry_at_ = now;
     }
 
     if (obj->mc_print_error_code == active_error) {
@@ -636,6 +693,9 @@ MachineObject::MachineObject(DeviceManager* manager, NetworkAgent* agent, std::s
     mc_print_stage = 0;
     mc_print_error_code = 0;
     print_error = 0;
+    last_auto_ignored_print_error_ = 0;
+    last_auto_ignored_print_error_command_at_ = {};
+    last_auto_ignored_print_error_retry_at_ = {};
     mc_print_line_number = 0;
     mc_print_percent = 0;
     mc_print_sub_stage = 0;
@@ -2468,6 +2528,8 @@ void MachineObject::reset()
     job_id_ = "";
     jobState_ = 0;
     last_auto_ignored_print_error_ = 0;
+    last_auto_ignored_print_error_command_at_ = {};
+    last_auto_ignored_print_error_retry_at_ = {};
     m_plate_index = -1;
     device_cert_installed = false;
 

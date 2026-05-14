@@ -128,10 +128,7 @@ bundle_dependency_closure() {
 
             seen[$dep_real]=1
             copy_shared_object_to_dir "$dep" "$dst_dir"
-            copied_path="$dst_dir/$(basename "$dep_real")"
-            if [ -e "$copied_path" ]; then
-                queue+=("$copied_path")
-            fi
+            queue+=("$dep_real")
         done < <(appimage_list_direct_dependencies "$target")
     done
 }

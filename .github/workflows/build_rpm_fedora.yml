@@ -1,0 +1,167 @@
+name: Build RPM (Fedora)
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  group: build-rpm-fedora-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rpm_fedora41:
+    name: RPM (fedora-41)
+    runs-on: ubuntu-24.04
+    container:
+      image: fedora:41
+    timeout-minutes: 360
+    defaults:
+      run:
+        shell: bash
+    env:
+      DIST_ID: fedora41
+      EVENT_TAG: ${{ github.event.release.tag_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: 'false'
+
+      - name: Install system tools
+        run: |
+          set -euo pipefail
+          dnf install -y \
+            sudo \
+            bash \
+            ca-certificates \
+            cmake \
+            ccache \
+            curl \
+            file \
+            findutils \
+            git \
+            gzip \
+            ninja-build \
+            rpm-build \
+            tar \
+            which
+
+      - name: Compute version
+        run: |
+          set -euo pipefail
+          tag="${EVENT_TAG:-${GITHUB_REF_NAME:-}}"
+          if [[ "$tag" == v* ]]; then
+            ver="${tag#v}"
+          else
+            ver="git${GITHUB_SHA::7}"
+          fi
+          rpm_ver="$(printf '%s' "$ver" | tr -c 'A-Za-z0-9._' '_')"
+          echo "VER=$ver" >> "$GITHUB_ENV"
+          echo "RPM_VER=$rpm_ver" >> "$GITHUB_ENV"
+
+      - name: Fedora - install Orca build dependencies
+        run: |
+          set -euo pipefail
+          ./build_linux.sh -u
+
+      - name: Fedora - build Orca dependencies
+        run: |
+          set -euo pipefail
+          ./build_linux.sh -drlL
+
+      - name: Fedora - build + install
+        run: |
+          set -euo pipefail
+          rm -rf build install-dir out
+          mkdir -p out
+
+          cmake -S . -B build -G "Ninja Multi-Config" \
+            -DCMAKE_PREFIX_PATH="${PWD}/deps/build/OrcaSlicer_dep/usr/local" \
+            -DSLIC3R_STATIC=1 \
+            -DSLIC3R_GTK=3 \
+            -DBBL_RELEASE_TO_PUBLIC=1 \
+            -DBBL_INTERNAL_TESTING=0 \
+            -DSLIC3R_PCH=ON \
+            -DORCA_TOOLS=ON \
+            -DCMAKE_INSTALL_PREFIX="${PWD}/install-dir"
+
+          cmake --build build --config Release --target install -j"$(nproc)"
+
+          ./scripts/run_gettext.sh
+          mkdir -p install-dir/resources/i18n
+          cp -a resources/i18n/. install-dir/resources/i18n/
+
+          app_bin=""
+          for candidate in \
+            "install-dir/bin/OrcaSlicer" \
+            "install-dir/bin/orca-slicer" \
+            "install-dir/OrcaSlicer" \
+            "install-dir/orca-slicer"; do
+            if [ -x "$candidate" ]; then
+              app_bin="${candidate#install-dir/}"
+              break
+            fi
+          done
+
+          if [ -z "$app_bin" ]; then
+            echo "ERROR: installed OrcaSlicer binary not found"
+            find install-dir -maxdepth 3 -type f | sort
+            exit 1
+          fi
+
+          echo "APP_BIN=$app_bin" >> "$GITHUB_ENV"
+
+      - name: Fedora - build RPM
+        run: |
+          set -euo pipefail
+          rm -rf rpm
+          mkdir -p rpm/BUILD rpm/BUILDROOT rpm/RPMS rpm/SOURCES rpm/SPECS rpm/SRPMS
+          cp -a install-dir rpm/SOURCES/orcaslicer-root
+
+          cat > rpm/SPECS/orcaslicer-bmcu.spec <<SPEC
+          %global debug_package %{nil}
+          Name:           orcaslicer-bmcu
+          Version:        ${RPM_VER}
+          Release:        1%{?dist}
+          Summary:        OrcaSlicer BMCU build
+          License:        AGPL-3.0
+          URL:            https://github.com/OrcaSlicer/OrcaSlicer
+          BuildArch:      x86_64
+
+          %description
+          OrcaSlicer BMCU build installed in /opt/orcaslicer.
+
+          %install
+          rm -rf %{buildroot}
+          mkdir -p %{buildroot}/opt/orcaslicer %{buildroot}/usr/bin
+          cp -a %{_topdir}/SOURCES/orcaslicer-root/. %{buildroot}/opt/orcaslicer/
+          cat > %{buildroot}/usr/bin/orca-slicer-bmcu <<'WRAPPER'
+          #!/bin/sh
+          exec /opt/orcaslicer/${APP_BIN} "$@"
+          WRAPPER
+          chmod 0755 %{buildroot}/usr/bin/orca-slicer-bmcu
+
+          %files
+          /opt/orcaslicer
+          /usr/bin/orca-slicer-bmcu
+
+          %changelog
+          * Wed Apr 22 2026 PJARCZAK CI <ci@invalid> - ${RPM_VER}-1
+          - Automated build
+          SPEC
+
+          rpmbuild --define "_topdir ${PWD}/rpm" -bb rpm/SPECS/orcaslicer-bmcu.spec
+          cp rpm/RPMS/x86_64/*.rpm "out/OrcaSlicer-BMCU_${DIST_ID}_x86_64_${VER}.rpm"
+
+      - name: Fedora - checksums
+        run: |
+          set -euo pipefail
+          (cd out && sha256sum * > "SHA256SUMS_${DIST_ID}.txt")
+
+      - name: Upload artifacts (RPM Fedora)
+        uses: actions/upload-artifact@v7
+        with:
+          name: orcaslicer-bmcu-rpm-${{ env.DIST_ID }}-${{ github.sha }}
+          path: out/
+          if-no-files-found: error

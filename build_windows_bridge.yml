@@ -1,0 +1,237 @@
+name: Build Windows with Linux bridge runtime
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  prepare_linux_bridge_runtime:
+    name: Prepare Linux bridge runtime
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: 'false'
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~4.3.0"
+          useLocalCache: true
+          useCloudCache: true
+
+      - name: Apt-Install Dependencies
+        uses: ./.github/actions/apt-install-deps
+
+      - name: Build Linux deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            echo "Build Linux deps attempt $attempt"
+            if ./build_linux.sh -drlL; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Transient dependency download/build failure, retrying after backoff"
+              sleep $((attempt * 20))
+            fi
+          done
+          exit 1
+
+      - name: Configure linux bridge host build
+        shell: bash
+        run: |
+          cmake -S . -B build -G "Ninja Multi-Config" -DORCA_TOOLS=ON
+
+      - name: Build linux host runtime and WSL rootfs
+        shell: bash
+        run: |
+          cmake --build build --config Release --target pjarczak_bambu_linux_host
+          bash tools/pjarczak_bambu_linux_host/package_linux_host_runtime.sh build
+          bash tools/pjarczak_bambu_runtime/rootfs/build_windows_wsl_rootfs.sh tools/pjarczak_bambu_runtime/rootfs/windows-wsl2-rootfs.tar
+          tar -czvf linux_host_runtime_${{ github.sha }}.tar.gz -C tools/pjarczak_bambu_linux_host/runtime linux-x86_64
+          tar -czvf wsl_rootfs_${{ github.sha }}.tar.gz -C tools/pjarczak_bambu_runtime/rootfs windows-wsl2-rootfs.tar
+
+      - name: Show packaged linux bridge runtime files
+        shell: bash
+        run: |
+          find tools/pjarczak_bambu_linux_host/runtime/linux-x86_64 -maxdepth 1 -type f | sort
+
+
+      - name: Upload linux host runtime artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux_host_runtime_windows_${{ github.sha }}
+          path: ./linux_host_runtime_${{ github.sha }}.tar.gz
+          if-no-files-found: error
+
+      - name: Upload WSL rootfs artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: wsl_rootfs_${{ github.sha }}
+          path: ./wsl_rootfs_${{ github.sha }}.tar.gz
+          if-no-files-found: error
+
+  build_windows:
+    name: Build Windows
+    runs-on: windows-latest
+    needs: prepare_linux_bridge_runtime
+    env:
+      ORCA_UPDATER_SIG_KEY: ${{ secrets.ORCA_UPDATER_SIG_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: 'false'
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~4.3.0"
+          useLocalCache: true
+          useCloudCache: true
+
+      - name: Get the version and date on Windows
+        shell: pwsh
+        run: |
+          $date = Get-Date -Format 'yyyyMMdd'
+          $eventName = "${{ github.event_name }}"
+          $prNumber = "${{ github.event.number }}"
+
+          if ($eventName -eq 'pull_request') {
+              $ver = "PR" + $prNumber
+          } else {
+              $versionContent = Get-Content version.inc -Raw
+              if ($versionContent -match 'set\(SoftFever_VERSION "(.*?)"\)') {
+                  $ver = $matches[1]
+              }
+              $ver = "V$ver"
+          }
+
+          echo "ver=$ver" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
+          echo "date=$date" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
+
+      - name: Download linux host runtime artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: linux_host_runtime_windows_${{ github.sha }}
+          path: ${{ github.workspace }}/linux_host_runtime_artifact
+
+      - name: Extract linux host runtime artifact on Windows
+        working-directory: ${{ github.workspace }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE\tools\pjarczak_bambu_linux_host\runtime" | Out-Null
+          tar -xzf "$env:GITHUB_WORKSPACE\linux_host_runtime_artifact\linux_host_runtime_${{ github.sha }}.tar.gz" -C "$env:GITHUB_WORKSPACE\tools\pjarczak_bambu_linux_host\runtime"
+
+      - name: Download WSL rootfs artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: wsl_rootfs_${{ github.sha }}
+          path: ${{ github.workspace }}/wsl_rootfs_artifact
+
+      - name: Extract WSL rootfs artifact on Windows
+        working-directory: ${{ github.workspace }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE\tools\pjarczak_bambu_runtime\rootfs" | Out-Null
+          tar -xzf "$env:GITHUB_WORKSPACE\wsl_rootfs_artifact\wsl_rootfs_${{ github.sha }}.tar.gz" -C "$env:GITHUB_WORKSPACE\tools\pjarczak_bambu_runtime\rootfs"
+
+      - name: setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Install nsis
+        shell: pwsh
+        run: |
+          choco install nsis -y
+
+      - name: Build Windows deps
+        working-directory: ${{ github.workspace }}
+        env:
+          WindowsSdkDir: 'C:\Program Files (x86)\Windows Kits\10\'
+          WindowsSDKVersion: '10.0.26100.0\'
+        shell: pwsh
+        run: .\build_release_vs.bat deps
+
+      - name: Build slicer Win
+        working-directory: ${{ github.workspace }}
+        env:
+          WindowsSdkDir: 'C:\Program Files (x86)\Windows Kits\10\'
+          WindowsSDKVersion: '10.0.26100.0\'
+        shell: pwsh
+        run: .\build_release_vs.bat slicer
+
+
+      - name: Ensure WSL is available for runtime validation
+        shell: pwsh
+        run: |
+          $wsl = Join-Path $env:WINDIR 'System32\wsl.exe'
+          if (!(Test-Path $wsl)) { throw 'wsl.exe not found' }
+
+          $ready = $false
+          try {
+            & $wsl --status
+            if ($LASTEXITCODE -eq 0) { $ready = $true }
+          } catch {}
+
+          if (-not $ready) {
+            & $wsl --install --no-distribution
+            if ($LASTEXITCODE -ne 0) { throw 'wsl --install --no-distribution failed' }
+          }
+
+          & $wsl --update
+          if ($LASTEXITCODE -ne 0) { throw 'wsl --update failed' }
+
+          & $wsl --status
+          if ($LASTEXITCODE -ne 0) { throw 'WSL is still not ready after install/update' }
+
+      - name: Show packaged Orca runtime files
+        shell: pwsh
+        run: |
+          Get-ChildItem -Force "$env:GITHUB_WORKSPACE\build\OrcaSlicer" | Format-Table Name, Length -AutoSize
+
+      - name: Install bundled WSL2 Orca runtime into live plugins dir
+        shell: pwsh
+        run: |
+          & "$env:GITHUB_WORKSPACE\build\OrcaSlicer\install_runtime.ps1" -ReplaceExisting
+
+      - name: Show live Orca plugin dir after installer
+        shell: pwsh
+        run: |
+          Get-ChildItem -Force "$env:APPDATA\OrcaSlicer\plugins" | Format-Table Name, Length -AutoSize
+          Write-Host "--- cache dir ---"
+          if (Test-Path "$env:APPDATA\OrcaSlicer\ota\plugins") {
+            Get-ChildItem -Force "$env:APPDATA\OrcaSlicer\ota\plugins" | Format-Table Name, Length -AutoSize
+          }
+
+      - name: Validate live Orca plugin dir bootstrap package
+        shell: pwsh
+        run: |
+          & "$env:APPDATA\OrcaSlicer\plugins\verify_runtime.ps1" -PackageDir "$env:APPDATA\OrcaSlicer\plugins" -PluginCacheDir "$env:APPDATA\OrcaSlicer\ota\plugins" -AllowMissingLinuxPlugin
+
+      - name: Create installer Win
+        working-directory: ${{ github.workspace }}/build
+        shell: pwsh
+        run: |
+          cpack -G NSIS
+
+      - name: Pack app
+        working-directory: ${{ github.workspace }}/build
+        shell: cmd
+        run: '"C:/Program Files/7-Zip/7z.exe" a -tzip OrcaSlicer_Windows_${{ env.ver }}_portable.zip ${{ github.workspace }}/build/OrcaSlicer'
+
+      - name: Upload artifacts Win portable
+        uses: actions/upload-artifact@v7
+        with:
+          name: OrcaSlicer_Windows_${{ env.ver }}_portable
+          path: ${{ github.workspace }}/build/OrcaSlicer_Windows_${{ env.ver }}_portable.zip
+          if-no-files-found: error
+
+      - name: Upload artifacts Win installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: OrcaSlicer_Windows_${{ env.ver }}_installer
+          path: ${{ github.workspace }}/build/OrcaSlicer*.exe
+          if-no-files-found: error

@@ -15,9 +15,17 @@ static unordered_set<string> package_dev_id_types {"094", "239", "093", "22E"};
 
 namespace {
 
-inline bool is_auto_ignored_hms_error_code(const std::string& error_code)
+inline bool is_auto_ignored_hms_error_code(const std::string& raw_error_code)
 {
-    return boost::to_upper_copy(error_code) == "0500409D";
+    std::string error_code = boost::to_upper_copy(raw_error_code);
+    if (error_code.size() >= 8) {
+        error_code = error_code.substr(0, 8);
+    }
+
+    return error_code == "0500409D" ||
+           error_code == "0501409D" ||
+           error_code == "0502409D" ||
+           error_code == "0503409D";
 }
 
 } // namespace

@@ -95,7 +95,7 @@ private:
         OnUpdateStatusFn update_fn = nullptr;
         WasCancelledFn cancel_fn = nullptr;
         OnWaitFn wait_fn = nullptr;
-        bool retry_used = false;
+        int retry_count = 0;
     };
 
     int invoke_print_request_untracked(LastPrintRequestType type,

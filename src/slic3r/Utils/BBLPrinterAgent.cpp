@@ -90,7 +90,7 @@ void BBLPrinterAgent::remember_last_print_request(LastPrintRequestType type,
     m_last_print_request.update_fn = update_fn;
     m_last_print_request.cancel_fn = cancel_fn;
     m_last_print_request.wait_fn = wait_fn;
-    m_last_print_request.retry_used = false;
+    m_last_print_request.retry_count = 0;
 }
 
 bool BBLPrinterAgent::retry_last_print_request(const std::string& dev_id)
@@ -100,13 +100,14 @@ bool BBLPrinterAgent::retry_last_print_request(const std::string& dev_id)
     OnUpdateStatusFn update_fn = nullptr;
     WasCancelledFn cancel_fn = nullptr;
     OnWaitFn wait_fn = nullptr;
+    int retry_count = 0;
 
     {
         std::lock_guard<std::mutex> lock(m_last_print_request_mutex);
         if (m_last_print_request.type == LastPrintRequestType::none) {
             return false;
         }
-        if (m_last_print_request.retry_used) {
+        if (m_last_print_request.retry_count >= 3) {
             return false;
         }
         if (!dev_id.empty() && !m_last_print_request.params.dev_id.empty() && m_last_print_request.params.dev_id != dev_id) {
@@ -118,7 +119,9 @@ bool BBLPrinterAgent::retry_last_print_request(const std::string& dev_id)
         update_fn = m_last_print_request.update_fn;
         cancel_fn = m_last_print_request.cancel_fn;
         wait_fn = m_last_print_request.wait_fn;
-        m_last_print_request.retry_used = true;
+
+        m_last_print_request.retry_count++;
+        retry_count = m_last_print_request.retry_count;
     }
 
     if (!update_fn) {
@@ -131,10 +134,17 @@ bool BBLPrinterAgent::retry_last_print_request(const std::string& dev_id)
         wait_fn = [](int, std::string) { return true; };
     }
 
-    std::thread([this, type, params, update_fn, cancel_fn, wait_fn]() mutable {
-        BOOST_LOG_TRIVIAL(info) << "auto retry last print request for dev_id=" << params.dev_id;
+    std::thread([this, type, params, update_fn, cancel_fn, wait_fn, retry_count]() mutable {
+        BOOST_LOG_TRIVIAL(info)
+            << "auto retry last print request attempt=" << retry_count
+            << ", dev_id=" << params.dev_id;
+
         const int result = invoke_print_request_untracked(type, params, update_fn, cancel_fn, wait_fn);
-        BOOST_LOG_TRIVIAL(info) << "auto retry last print request result=" << result << ", dev_id=" << params.dev_id;
+
+        BOOST_LOG_TRIVIAL(info)
+            << "auto retry last print request result=" << result
+            << ", attempt=" << retry_count
+            << ", dev_id=" << params.dev_id;
     }).detach();
 
     return true;
