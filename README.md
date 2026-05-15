@@ -30,7 +30,23 @@ On Linux, a normal installation is enough.
 
 ### macOS
 
-Work in progress.
+macOS uses [Lima](https://lima-vm.io/) (Linux VM) to run the BambuNetwork bridge.
+
+Prerequisites (install with [Homebrew](https://brew.sh)):
+
+```bash
+brew install lima
+```
+
+On Apple Silicon (M1/M2/M3/M4), also install Rosetta if not already present:
+
+```bash
+softwareupdate --install-rosetta --agree-to-license
+```
+
+Then open Orca Studio normally — on first launch it bootstraps the Lima VM (`orcaslicer-bambu-network`) and copies the bridge runtime into `~/Library/Application Support/OrcaSlicer/macos-bridge/`. If Lima or Rosetta are missing, the bundled installer (`install_runtime_macos.sh` inside the `.app`) will try to fetch them automatically.
+
+Minimum macOS: 11.3 (13+ recommended for vz/vzNAT acceleration).
 
 
 ## BMCU
