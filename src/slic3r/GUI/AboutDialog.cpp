@@ -246,7 +246,9 @@ AboutDialog::AboutDialog()
         auto          version_string = std::string(SoftFever_VERSION); // _L("Orca Slicer ") + " " + std::string(SoftFever_VERSION);
         wxStaticText* version = new wxStaticText(this, wxID_ANY, version_string.c_str(), wxDefaultPosition, wxDefaultSize);
         wxStaticText* credits_string = new wxStaticText(this, wxID_ANY, wxString::Format("Build %s", std::string(GIT_COMMIT_HASH)), wxDefaultPosition, wxDefaultSize);
+        wxStaticText* freedom_counter = new wxStaticText(this, wxID_ANY, _L("Freedom counter: LAN + Cloud = 2 user-controlled paths"), wxDefaultPosition, wxDefaultSize);
         credits_string->SetFont(_build_string_font);
+        freedom_counter->SetFont(_build_string_font);
         wxFont version_font = GetFont();
         #ifdef __WXMSW__
 			version_font.SetPointSize(version_font.GetPointSize()-1);
@@ -257,12 +259,16 @@ AboutDialog::AboutDialog()
         version->SetFont(version_font);
         version->SetForegroundColour(wxColour("#949494"));
         credits_string->SetForegroundColour(wxColour("#949494"));
+        freedom_counter->SetForegroundColour(wxColour("#949494"));
         version->SetBackgroundColour(wxColour("#FFFFFF"));
         credits_string->SetBackgroundColour(wxColour("#FFFFFF"));
+        freedom_counter->SetBackgroundColour(wxColour("#FFFFFF"));
 
         vesizer->Add(version, 0, wxRIGHT | wxALIGN_RIGHT, FromDIP(20));
         vesizer->AddSpacer(FromDIP(5));
         vesizer->Add(credits_string, 0, wxRIGHT | wxALIGN_RIGHT, FromDIP(20));
+        vesizer->AddSpacer(FromDIP(3));
+        vesizer->Add(freedom_counter, 0, wxRIGHT | wxALIGN_RIGHT, FromDIP(20));
         vesizer->Add(0, 0, 1, wxEXPAND, FromDIP(5));
     }
 
