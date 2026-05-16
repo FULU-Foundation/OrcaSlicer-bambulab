@@ -17,6 +17,8 @@ public:
 #ifdef __WXMSW__
     void BindUnfocusEvent();
 #endif
+protected:
+    virtual bool ShouldDismissOnTopWindowDeactivate() { return true; }
 private:
 #ifdef __WXOSX__
     void OnMouseEvent2(wxMouseEvent &evt);

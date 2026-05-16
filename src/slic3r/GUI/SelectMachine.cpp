@@ -5238,15 +5238,18 @@ void PrinterInfoBox::SetPrinters(const std::vector<MachineObject*>& sorted_print
         drop_item.text_static_tips = _get_tips(obj);
 
         // update image
-        try
-        {
-            drop_item.icon = create_scaled_bitmap("printer_preview_" + obj->printer_type, this, 32);
-            drop_item.icon_textctrl = create_scaled_bitmap("printer_preview_" + obj->printer_type, this, 52);
-        }
-        catch (const std::exception&)
-        {
-            drop_item.icon = create_scaled_bitmap("printer_preview_BL-P001", this, 32);
-            drop_item.icon_textctrl = create_scaled_bitmap("printer_preview_BL-P001", this, 52);
+        const std::string printer_preview_key = obj->printer_type.empty() ? std::string() : "printer_preview_" + obj->printer_type;
+        if (!printer_preview_key.empty()) {
+            try {
+                drop_item.icon = create_scaled_bitmap(printer_preview_key, this, 32);
+                drop_item.icon_textctrl = create_scaled_bitmap(printer_preview_key, this, 52);
+            } catch (const std::exception&) {
+                drop_item.icon = create_scaled_bitmap("printer_placeholder", this, 32);
+                drop_item.icon_textctrl = create_scaled_bitmap("printer_placeholder", this, 52);
+            }
+        } else {
+            drop_item.icon = create_scaled_bitmap("printer_placeholder", this, 32);
+            drop_item.icon_textctrl = create_scaled_bitmap("printer_placeholder", this, 52);
         }
 
         drop_item.tip = obj->get_printer_type_display_str();

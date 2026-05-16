@@ -45,7 +45,8 @@ MediaPlayCtrl::MediaPlayCtrl(wxWindow *parent, BBLMediaCtrl *media_ctrl, const w
 {
     SetLabel("MediaPlayCtrl");
     SetBackgroundColour(*wxWHITE);
-    m_media_ctrl->Bind(wxEVT_MEDIA_STATECHANGED, &MediaPlayCtrl::onStateChanged, this);
+    if (m_media_ctrl)
+        m_media_ctrl->Bind(wxEVT_MEDIA_STATECHANGED, &MediaPlayCtrl::onStateChanged, this);
 
     m_button_play = new Button(this, "", "media_play", wxBORDER_NONE);
     m_button_play->SetCanFocus(false);
@@ -55,7 +56,8 @@ MediaPlayCtrl::MediaPlayCtrl(wxWindow *parent, BBLMediaCtrl *media_ctrl, const w
 
     m_label_stat = new Label(this, "");
     m_label_stat->SetForegroundColour(wxColour("#323A3C"));
-    m_media_ctrl->Bind(EVT_MEDIA_CTRL_STAT, [this](auto & e) {
+    if (m_media_ctrl)
+        m_media_ctrl->Bind(EVT_MEDIA_CTRL_STAT, [this](auto & e) {
 #if !BBL_RELEASE_TO_PUBLIC
         wxSize size = m_media_ctrl->GetVideoSize();
         m_label_stat->SetLabel(e.GetString() + wxString::Format(" VS:%ix%i", size.x, size.y));
@@ -259,6 +261,8 @@ void MediaPlayCtrl::Play()
 {
     if (!m_next_retry.IsValid() || wxDateTime::Now() < m_next_retry)
         return;
+    if (!m_media_ctrl)
+        return;
     if (!IsShownOnScreen())
         return;
     if (m_last_state != MEDIASTATE_IDLE) {
@@ -387,6 +391,8 @@ void start_ping_test();
 void MediaPlayCtrl::Stop(wxString const &msg, wxString const &msg2)
 {
     int last_state = m_last_state;
+    if (!m_media_ctrl)
+        return;
 
     if (m_last_state != MEDIASTATE_IDLE) {
         m_media_ctrl->InvalidateBestSize();
@@ -553,8 +559,13 @@ void MediaPlayCtrl::ToggleStream()
     NetworkAgent *agent = wxGetApp().getAgent();
     if (!agent) return;
     std::string protocols[] = {"", "\"tutk\"", "\"agora\"", "\"tutk\",\"agora\""};
+    auto token = std::weak_ptr(m_token);
     agent->get_camera_url(m_machine + "|" + m_dev_ver + "|" + protocols[m_remote_proto],
-            [this, m = m_machine, v = agent->get_version(), dv = m_dev_ver](std::string url) {
+            [this, m = m_machine, v = agent->get_version(), dv = m_dev_ver, token](std::string url) {
+        if (token.expired()) {
+            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": token has been expired";
+            return;
+        }
         if (boost::algorithm::starts_with(url, "bambu:///")) {
             url += "&device=" + m;
             url += "&net_ver=" + v;
@@ -597,9 +608,11 @@ void MediaPlayCtrl::jump_to_play()
 void MediaPlayCtrl::onStateChanged(wxMediaEvent &event)
 {
     auto last_state = m_last_state;
+    if (!m_media_ctrl) return;
     auto state      = m_media_ctrl->GetState();
     BOOST_LOG_TRIVIAL(info) << "MediaPlayCtrl::onStateChanged: " << state << ", last_state: " << last_state;
     if ((int) state < 0) return;
+    if (!m_media_ctrl) return;
     {
         boost::unique_lock lock(m_mutex);
         if (!m_tasks.empty()) {
@@ -667,6 +680,7 @@ bool MediaPlayCtrl::IsStreaming() const { return m_streaming; }
 
 void MediaPlayCtrl::load()
 {
+    if (!m_media_ctrl) return;
     m_last_state = MEDIASTATE_LOADING;
     SetStatus(_L("Loading..."));
     if (wxGetApp().app_config->get("internal_developer_mode") == "true") {
@@ -700,6 +714,10 @@ void MediaPlayCtrl::media_proc()
     while (true) {
         while (m_tasks.empty()) {
             m_cond.wait(lock);
+        }
+        if (!m_media_ctrl) {
+            m_tasks.pop_front();
+            continue;
         }
         wxString url = m_tasks.front();
         if (m_tasks.size() >= 2 && !url.IsEmpty() && url[0] != '<' && m_tasks[1] == "<stop>") {
