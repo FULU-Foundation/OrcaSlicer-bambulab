@@ -57,7 +57,7 @@ if "%VS_MAJOR%"=="16" (
     set CMAKE_GENERATOR="Visual Studio 18 2026"
 ) else (
     echo Error: Unsupported Visual Studio version: %VS_MAJOR%
-    echo Supported versions: VS2019 ^(16.x^), VS2022 ^(17.x^), VS2026 ^(18.x^)
+    echo Supported versions: VS2019 (16.x^), VS2022 (17.x^), VS2026 (18.x^)
     exit /b 1
 )
 
@@ -68,7 +68,7 @@ echo Using CMake generator: %CMAKE_GENERATOR%
 
 @REM Pack deps
 if "%1"=="pack" (
-    setlocal ENABLEDELAYEDEXPANSION
+    setlocal ENABLEDELAYEDEXPANSION 
     cd %WP%/deps/build
     for /f "tokens=2-4 delims=/ " %%a in ('date /t') do set build_date=%%c%%b%%a
     echo packing deps: OrcaSlicer_dep_win64_!build_date!_vs!VS_VERSION!.zip
@@ -97,7 +97,7 @@ if "%debug%"=="ON" (
 )
 echo build type set to %build_type%
 
-setlocal DISABLEDELAYEDEXPANSION
+setlocal DISABLEDELAYEDEXPANSION 
 cd deps
 mkdir %build_dir%
 cd %build_dir%
@@ -114,23 +114,16 @@ REM Set minimum CMake policy to avoid <3.5 errors
 set CMAKE_POLICY_VERSION_MINIMUM=3.5
 if "%USE_NINJA%"=="1" (
     cmake ../ -G %CMAKE_GENERATOR% -DCMAKE_BUILD_TYPE=%build_type%
-    if errorlevel 1 exit /b 1
     cmake --build . --config %build_type% --target deps
-    if errorlevel 1 exit /b 1
 ) else (
     cmake ../ -G %CMAKE_GENERATOR% -A x64 -DCMAKE_BUILD_TYPE=%build_type%
-    if errorlevel 1 exit /b 1
     cmake --build . --config %build_type% --target deps -- -m
-    if errorlevel 1 exit /b 1
 )
 @echo off
 
 if "%1"=="deps" goto :done
 
 :slicer
-call :check_linux_bridge_runtime_inputs
-if errorlevel 1 exit /b 1
-
 echo "building Orca Slicer..."
 cd %WP%
 mkdir %build_dir%
@@ -140,29 +133,21 @@ echo on
 set CMAKE_POLICY_VERSION_MINIMUM=3.5
 if "%USE_NINJA%"=="1" (
     cmake .. -G %CMAKE_GENERATOR% -DORCA_TOOLS=ON %SIG_FLAG% -DCMAKE_BUILD_TYPE=%build_type%
-    if errorlevel 1 exit /b 1
     cmake --build . --config %build_type% --target ALL_BUILD
-    if errorlevel 1 exit /b 1
 ) else (
     cmake .. -G %CMAKE_GENERATOR% -A x64 -DORCA_TOOLS=ON %SIG_FLAG% -DCMAKE_BUILD_TYPE=%build_type%
-    if errorlevel 1 exit /b 1
     cmake --build . --config %build_type% --target ALL_BUILD -- -m
-    if errorlevel 1 exit /b 1
 )
 @echo off
 cd ..
 call scripts/run_gettext.bat
-if errorlevel 1 exit /b 1
 cd %build_dir%
 cmake --build . --target install --config %build_type%
-if errorlevel 1 exit /b 1
-call :copy_linux_bridge_runtime
-if errorlevel 1 exit /b 1
 
 :done
 @echo off
-for /f "tokens=1-3 delims=:.," %%a in ("%_START_TIME: =0%") do set /a "_start_s=(1%%a-100)*3600 + (1%%b-100)*60 + (1%%c-100)"
-for /f "tokens=1-3 delims=:.," %%a in ("%TIME: =0%") do set /a "_end_s=(1%%a-100)*3600 + (1%%b-100)*60 + (1%%c-100)"
+for /f "tokens=1-3 delims=:.," %%a in ("%_START_TIME: =0%") do set /a "_start_s=%%a*3600+%%b*60+%%c"
+for /f "tokens=1-3 delims=:.," %%a in ("%TIME: =0%") do set /a "_end_s=%%a*3600+%%b*60+%%c"
 set /a "_elapsed=_end_s - _start_s"
 if %_elapsed% lss 0 set /a "_elapsed+=86400"
 set /a "_hours=_elapsed / 3600"
@@ -171,185 +156,3 @@ set /a "_mins=_remainder / 60"
 set /a "_secs=_remainder - _mins * 60"
 echo.
 echo Build completed in %_hours%h %_mins%m %_secs%s
-exit /b 0
-
-:resolve_rootfs_tar
-if defined PJARCZAK_ROOTFS_TAR exit /b 0
-
-if defined PJARCZAK_WSL_ROOTFS_TAR (
-    if exist "%PJARCZAK_WSL_ROOTFS_TAR%" (
-        set "PJARCZAK_ROOTFS_TAR=%PJARCZAK_WSL_ROOTFS_TAR%"
-        exit /b 0
-    )
-    echo Missing file from PJARCZAK_WSL_ROOTFS_TAR: %PJARCZAK_WSL_ROOTFS_TAR%
-    exit /b 1
-)
-
-if exist "%WP%\tools\pjarczak_bambu_runtime\rootfs\windows-wsl2-rootfs.tar" (
-    set "PJARCZAK_ROOTFS_TAR=%WP%\tools\pjarczak_bambu_runtime\rootfs\windows-wsl2-rootfs.tar"
-    exit /b 0
-)
-
-if exist "%WP%\tools\pjarczak_bambu_runtime\windows-wsl2-rootfs.tar" (
-    set "PJARCZAK_ROOTFS_TAR=%WP%\tools\pjarczak_bambu_runtime\windows-wsl2-rootfs.tar"
-    exit /b 0
-)
-
-echo Missing windows-wsl2-rootfs.tar
-echo Expected one of:
-echo   %WP%\tools\pjarczak_bambu_runtime\rootfs\windows-wsl2-rootfs.tar
-echo   %WP%\tools\pjarczak_bambu_runtime\windows-wsl2-rootfs.tar
-echo Or set PJARCZAK_WSL_ROOTFS_TAR to an absolute path.
-exit /b 1
-
-:check_linux_bridge_runtime_inputs
-set "HOST_RUNTIME_DIR=%WP%\tools\pjarczak_bambu_linux_host\runtime\linux-x86_64"
-
-call :resolve_rootfs_tar
-if errorlevel 1 exit /b 1
-
-if not exist "%HOST_RUNTIME_DIR%\pjarczak_bambu_linux_host" (
-    echo Missing linux host runtime: %HOST_RUNTIME_DIR%\pjarczak_bambu_linux_host
-    echo Build it first on Linux with:
-    echo   tools\pjarczak_bambu_linux_host\package_linux_host_runtime.sh
-    exit /b 1
-)
-
-if not exist "%HOST_RUNTIME_DIR%\pjarczak_bambu_linux_host_abi1" (
-    echo Missing linux host ABI1 runtime: %HOST_RUNTIME_DIR%\pjarczak_bambu_linux_host_abi1
-    exit /b 1
-)
-
-if not exist "%HOST_RUNTIME_DIR%\pjarczak_bambu_linux_host_abi0" (
-    echo Missing linux host ABI0 runtime: %HOST_RUNTIME_DIR%\pjarczak_bambu_linux_host_abi0
-    exit /b 1
-)
-
-if not exist "%HOST_RUNTIME_DIR%\ca-certificates.crt" (
-    echo Missing CA bundle for linux bridge runtime: %HOST_RUNTIME_DIR%\ca-certificates.crt
-    exit /b 1
-)
-
-if not exist "%HOST_RUNTIME_DIR%\slicer_base64.cer" (
-    echo Missing slicer certificate for linux bridge runtime: %HOST_RUNTIME_DIR%\slicer_base64.cer
-    exit /b 1
-)
-
-echo Linux bridge preflight OK
-echo   host runtime: %HOST_RUNTIME_DIR%
-echo   rootfs tar:   %PJARCZAK_ROOTFS_TAR%
-exit /b 0
-
-:copy_linux_bridge_runtime
-set "INSTALL_DIR=%WP%\%build_dir%\OrcaSlicer"
-set "HOST_RUNTIME_DIR=%WP%\tools\pjarczak_bambu_linux_host\runtime\linux-x86_64"
-
-if not defined PJARCZAK_ROOTFS_TAR (
-    call :resolve_rootfs_tar
-    if errorlevel 1 exit /b 1
-)
-
-if not exist "%HOST_RUNTIME_DIR%\pjarczak_bambu_linux_host" (
-    echo Missing linux host runtime: %HOST_RUNTIME_DIR%\pjarczak_bambu_linux_host
-    echo Build it first on Linux with:
-    echo   tools\pjarczak_bambu_linux_host\package_linux_host_runtime.sh
-    exit /b 1
-)
-
-if not exist "%HOST_RUNTIME_DIR%\pjarczak_bambu_linux_host_abi1" (
-    echo Missing linux host ABI1 runtime: %HOST_RUNTIME_DIR%\pjarczak_bambu_linux_host_abi1
-    exit /b 1
-)
-
-if not exist "%HOST_RUNTIME_DIR%\pjarczak_bambu_linux_host_abi0" (
-    echo Missing linux host ABI0 runtime: %HOST_RUNTIME_DIR%\pjarczak_bambu_linux_host_abi0
-    exit /b 1
-)
-
-if not exist "%HOST_RUNTIME_DIR%\ca-certificates.crt" (
-    echo Missing CA bundle for linux bridge runtime: %HOST_RUNTIME_DIR%\ca-certificates.crt
-    exit /b 1
-)
-
-if not exist "%HOST_RUNTIME_DIR%\slicer_base64.cer" (
-    echo Missing slicer certificate for linux bridge runtime: %HOST_RUNTIME_DIR%\slicer_base64.cer
-    exit /b 1
-)
-
-if not exist "%INSTALL_DIR%" (
-    echo Missing install directory: %INSTALL_DIR%
-    exit /b 1
-)
-
-if not exist "%INSTALL_DIR%\pjarczak_bambu_networking_bridge.dll" (
-    if exist "%WP%\%build_dir%\pjarczak_bambu_networking_bridge.dll" (
-        copy /Y "%WP%\%build_dir%\pjarczak_bambu_networking_bridge.dll" "%INSTALL_DIR%\pjarczak_bambu_networking_bridge.dll" >nul
-    )
-)
-
-if not exist "%INSTALL_DIR%\pjarczak_bambu_networking_bridge.dll" (
-    if exist "%WP%\%build_dir%\src\%build_type%\pjarczak_bambu_networking_bridge.dll" (
-        copy /Y "%WP%\%build_dir%\src\%build_type%\pjarczak_bambu_networking_bridge.dll" "%INSTALL_DIR%\pjarczak_bambu_networking_bridge.dll" >nul
-    )
-)
-
-if not exist "%INSTALL_DIR%\pjarczak_bambu_networking_bridge.dll" (
-    echo Missing bridge DLL in install output: %INSTALL_DIR%\pjarczak_bambu_networking_bridge.dll
-    exit /b 1
-)
-
-xcopy "%HOST_RUNTIME_DIR%\*" "%INSTALL_DIR%\\" /I /Y >nul
-if errorlevel 4 (
-    echo Failed to copy flat linux host runtime files into %INSTALL_DIR%
-    exit /b 1
-)
-
-copy /Y "%PJARCZAK_ROOTFS_TAR%" "%INSTALL_DIR%\windows-wsl2-rootfs.tar" >nul
-if errorlevel 1 (
-    echo Failed to copy windows-wsl2-rootfs.tar into %INSTALL_DIR%
-    exit /b 1
-)
-
-copy /Y "%WP%\tools\pjarczak_bambu_runtime\wsl\pjarczak_wsl_run_host.sh" "%INSTALL_DIR%\pjarczak_wsl_run_host.sh" >nul
-if errorlevel 1 (
-    echo Failed to copy pjarczak_wsl_run_host.sh into %INSTALL_DIR%
-    exit /b 1
-)
-
-copy /Y "%WP%\tools\pjarczak_bambu_runtime\wsl\install_runtime.ps1" "%INSTALL_DIR%\install_runtime.ps1" >nul
-if errorlevel 1 (
-    echo Failed to copy install_runtime.ps1 into %INSTALL_DIR%
-    exit /b 1
-)
-
-copy /Y "%WP%\tools\pjarczak_bambu_runtime\wsl\install_runtime.cmd" "%INSTALL_DIR%\install_runtime.cmd" >nul
-if errorlevel 1 (
-    echo Failed to copy install_runtime.cmd into %INSTALL_DIR%
-    exit /b 1
-)
-
-copy /Y "%WP%\tools\pjarczak_bambu_runtime\wsl\verify_runtime.ps1" "%INSTALL_DIR%\verify_runtime.ps1" >nul
-if errorlevel 1 (
-    echo Failed to copy verify_runtime.ps1 into %INSTALL_DIR%
-    exit /b 1
-)
-
-copy /Y "%WP%\tools\pjarczak_bambu_runtime\wsl\pjarczak_wsl_distro.txt" "%INSTALL_DIR%\pjarczak_wsl_distro.txt" >nul
-if errorlevel 1 (
-    echo Failed to copy pjarczak_wsl_distro.txt into %INSTALL_DIR%
-    exit /b 1
-)
-
-copy /Y "%WP%\tools\pjarczak_bambu_runtime\wsl\pjarczak_plugin_cache_subdir.txt" "%INSTALL_DIR%\pjarczak_plugin_cache_subdir.txt" >nul
-if errorlevel 1 (
-    echo Failed to copy pjarczak_plugin_cache_subdir.txt into %INSTALL_DIR%
-    exit /b 1
-)
-
-copy /Y "%WP%\tools\pjarczak_bambu_runtime\release\assemble_windows_runtime_bundle.ps1" "%INSTALL_DIR%\assemble_windows_runtime_bundle.ps1" >nul
-if errorlevel 1 (
-    echo Failed to copy assemble_windows_runtime_bundle.ps1 into %INSTALL_DIR%
-    exit /b 1
-)
-
-exit /b 0

@@ -1,6 +1,5 @@
 #pragma once
 #include <mutex>
-#include <functional>
 #include "libslic3r/CommonDefs.hpp"
 
 #include "slic3r/Utils/json_diff.hpp"
@@ -35,9 +34,6 @@ private:
     std::map<std::string, MachineObject*> localMachineList;     /* dev_id -> MachineObject*, localMachine SSDP   */
     std::map<std::string, MachineObject*> userMachineList;      /* dev_id -> MachineObject*  cloudMachine of User */
 
-    std::mutex autoRetryPrintUiCallbackMutex;
-    std::function<bool(const std::string&)> m_auto_retry_print_ui_callback;
-
 public:
     DeviceManager(NetworkAgent* agent = nullptr);
     ~DeviceManager();
@@ -69,14 +65,14 @@ public:
     std::map<std::string, MachineObject*> get_user_machinelist() const { return userMachineList; }
     std::string get_first_online_user_machine() const;
     void erase_user_machine(std::string dev_id) { userMachineList.erase(dev_id); }
-    void clean_user_info();
+    void clean_user_info(bool keep_local_selection = false);
 
     void load_last_machine();
-    void update_user_machine_list_info();
+    void update_user_machine_list_info(const std::string& provider);
     void parse_user_print_info(std::string body);
     void reload_printer_settings();
 
-    MachineObject* get_user_machine(std::string dev_id);
+    MachineObject* get_user_machine(std::string dev_id, const std::string& provider);
 
     // subscribe
     void add_user_subscribe();
@@ -87,14 +83,11 @@ public:
     MachineObject* get_my_machine(std::string dev_id);
     std::map<std::string, MachineObject*> get_my_machine_list();
     std::map<std::string, MachineObject*> get_my_cloud_machine_list();
-    void modify_device_name(std::string dev_id, std::string dev_name);
-
-    void set_auto_retry_print_ui_callback(std::function<bool(const std::string&)> callback);
-    bool trigger_auto_retry_print_ui_callback(const std::string& dev_id);
+    void modify_device_name(std::string dev_id, std::string dev_name, const std::string& provider);
 
     /* create machine or update machine properties */
     void on_machine_alive(std::string json_str);
-    int query_bind_status(std::string& msg);
+    int query_bind_status(std::string& msg, const std::string& provider);
 
     // mutil-device
     void EnableMultiMachine(bool enable = true);
@@ -123,7 +116,7 @@ public:
 class DeviceManagerRefresher : public wxObject
 {
     wxTimer* m_timer{ nullptr };
-    int            m_timer_interval_msec = 1000;
+    int            m_timer_interval_msec = 5000;
 
     DeviceManager* m_manager{ nullptr };
 

@@ -12,6 +12,10 @@ cmake_minimum_required(VERSION 3.13)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 if (WIN32)
+    # Disable vcpkg's user-wide auto-link ("vcpkg integrate install") to avoid unnecessary
+    # libs.
+    set(CMAKE_VS_GLOBALS "VcpkgEnabled=false")
+
     # Detect known CI environments
     set(IS_CI FALSE)
     if(DEFINED ENV{CI})
@@ -117,10 +121,10 @@ else()
     set(SLIC3R_STATIC_INITIAL 1)
 endif()
 
-option(SLIC3R_STATIC 			"Compile OrcaSlicer with static libraries (Boost, TBB)" ${SLIC3R_STATIC_INITIAL})
-option(SLIC3R_GUI    			"Compile OrcaSlicer with GUI components (OpenGL, wxWidgets)" 1)
+option(SLIC3R_STATIC            "Compile OrcaSlicer with static libraries (Boost, TBB)" ${SLIC3R_STATIC_INITIAL})
+option(SLIC3R_GUI               "Compile OrcaSlicer with GUI components (OpenGL, wxWidgets)" 1)
 option(SLIC3R_FHS               "Assume OrcaSlicer is to be installed in a FHS directory structure" 0)
-option(SLIC3R_PROFILE 			"Compile OrcaSlicer with an invasive Shiny profiler" 0)
+option(SLIC3R_PROFILE           "Compile OrcaSlicer with an invasive Shiny profiler" 0)
 option(SLIC3R_PCH               "Use precompiled headers" 1)
 option(SLIC3R_MSVC_COMPILE_PARALLEL "Compile on Visual Studio in parallel" 1)
 option(SLIC3R_MSVC_PDB          "Generate PDB files on MSVC in Release mode" 1)
@@ -220,7 +224,9 @@ if (MSVC)
     # /bigobj (Increase Number of Sections in .Obj file)
     # error C3859: virtual memory range for PCH exceeded; please recompile with a command line option of '-Zm90' or greater
     # Generate symbols at every build target, even for the release.
-    add_compile_options(-bigobj -Zm520 /Zi)
+	# -Zm520 fixes error C3859 but forces the compiler to pre-allocate that memory for every translation unit regardless
+	# combining /Zi with /FS frees up a significant amount of memory pressure across all parallel compile jobs and makes /MP faster overall.
+    add_compile_options(-bigobj /Zi /FS)
     # Disable STL4007: Many result_type typedefs and all argument_type, first_argument_type, and second_argument_type typedefs are deprecated in C++17.
     #FIXME Remove this line after eigen library adapts to the new C++17 adaptor rules.
     add_compile_options(-D_SILENCE_CXX17_ADAPTOR_TYPEDEFS_DEPRECATION_WARNING)
@@ -231,6 +237,11 @@ if (MSVC)
     # Disable warnings on comparison of unsigned and signed
     # C4018: signed/unsigned mismatch
     add_compile_options(/wd4018)
+    # Prevent linker restart when TBB (or other deps) built with /GL are linked
+	# Make your full (clean) build slower because it enables link-time code generation across all translation units.
+	# helps incremental builds by preventing the double-link restart from TBB
+    set(CMAKE_EXE_LINKER_FLAGS    "${CMAKE_EXE_LINKER_FLAGS} /LTCG")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /LTCG")
 endif ()
 
 if (${CMAKE_CXX_COMPILER_ID} STREQUAL "AppleClang" AND ${CMAKE_CXX_COMPILER_VERSION} VERSION_GREATER 15)
@@ -323,43 +334,44 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # WIN10SDK_PATH is used to point CMake to the WIN10 SDK installation directory.
 # We pick it from environment if it is not defined in another way
-if(WIN32)
-    if(NOT DEFINED WIN10SDK_PATH)
-        if(DEFINED ENV{WIN10SDK_PATH})
-                set(WIN10SDK_PATH "$ENV{WIN10SDK_PATH}")
-        endif()
-    endif()
-    if(DEFINED WIN10SDK_PATH)
-        #BBS: modify win10sdk_path
-        if (EXISTS "${WIN10SDK_PATH}/winrt/windows.graphics.printing3d.h")
-            set(WIN10SDK_INCLUDE_PATH "${WIN10SDK_PATH}")
-        else()
-            message("WIN10SDK_PATH is invalid: ${WIN10SDK_PATH}")
-            message("${WIN10SDK_PATH}/winrt/windows.graphics.printing3d.h was not found")
-            message("STL fixing by the Netfabb service will not be compiled")
-            unset(WIN10SDK_PATH)
-        endif()
-    else()
-        # Try to use the default Windows 10 SDK path.
-        if (DEFINED ENV{WindowsSdkDir} AND DEFINED ENV{WindowsSDKVersion})
-            set(WIN10SDK_INCLUDE_PATH "$ENV{WindowsSdkDir}/Include/$ENV{WindowsSDKVersion}")
-        else ()
-            set(WIN10SDK_INCLUDE_PATH "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0")
-        endif ()
-        if (NOT EXISTS "${WIN10SDK_INCLUDE_PATH}/winrt/windows.graphics.printing3d.h")
-            message("${WIN10SDK_INCLUDE_PATH}/winrt/windows.graphics.printing3d.h was not found")
-            message("STL fixing by the Netfabb service will not be compiled")
-            unset(WIN10SDK_INCLUDE_PATH)
-        endif()
-    endif()
-    if(WIN10SDK_INCLUDE_PATH)
-        message("Building with Win10 Netfabb STL fixing service support")
-        add_definitions(-DHAS_WIN10SDK)
-        include_directories(SYSTEM "${WIN10SDK_INCLUDE_PATH}")
-    else()
-        message("Building without Win10 Netfabb STL fixing service support")
-    endif()
-endif()
+# ORCA: Removed Netfabb STL fixing service support in favor of CGAL.
+# if(WIN32)
+#     if(NOT DEFINED WIN10SDK_PATH)
+#         if(DEFINED ENV{WIN10SDK_PATH})
+#                 set(WIN10SDK_PATH "$ENV{WIN10SDK_PATH}")
+#         endif()
+#     endif()
+#     if(DEFINED WIN10SDK_PATH)
+#         #BBS: modify win10sdk_path
+#         if (EXISTS "${WIN10SDK_PATH}/winrt/windows.graphics.printing3d.h")
+#             set(WIN10SDK_INCLUDE_PATH "${WIN10SDK_PATH}")
+#         else()
+#             message("WIN10SDK_PATH is invalid: ${WIN10SDK_PATH}")
+#             message("${WIN10SDK_PATH}/winrt/windows.graphics.printing3d.h was not found")
+#             message("STL fixing by the Netfabb service will not be compiled")
+#             unset(WIN10SDK_PATH)
+#         endif()
+#     else()
+#         # Try to use the default Windows 10 SDK path.
+#         if (DEFINED ENV{WindowsSdkDir} AND DEFINED ENV{WindowsSDKVersion})
+#             set(WIN10SDK_INCLUDE_PATH "$ENV{WindowsSdkDir}/Include/$ENV{WindowsSDKVersion}")
+#         else ()
+#             set(WIN10SDK_INCLUDE_PATH "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0")
+#         endif ()
+#         if (NOT EXISTS "${WIN10SDK_INCLUDE_PATH}/winrt/windows.graphics.printing3d.h")
+#             message("${WIN10SDK_INCLUDE_PATH}/winrt/windows.graphics.printing3d.h was not found")
+#             message("STL fixing by the Netfabb service will not be compiled")
+#             unset(WIN10SDK_INCLUDE_PATH)
+#         endif()
+#     endif()
+#     if(WIN10SDK_INCLUDE_PATH)
+#         message("Building with Win10 Netfabb STL fixing service support")
+#         add_definitions(-DHAS_WIN10SDK)
+#         include_directories(SYSTEM "${WIN10SDK_INCLUDE_PATH}")
+#     else()
+#         message("Building without Win10 Netfabb STL fixing service support")
+#     endif()
+# endif()
 
 if (APPLE)
     message("OS X SDK Path: ${CMAKE_OSX_SYSROOT}")
@@ -575,6 +587,9 @@ endif()
 set(Boost_NO_SYSTEM_PATHS TRUE)
 find_package(Boost 1.83.0 REQUIRED COMPONENTS system filesystem thread log log_setup locale regex chrono atomic date_time iostreams program_options nowide)
 
+# Find and configure Eigen3
+find_package(Eigen3 5.0.1 REQUIRED)
+
 add_library(boost_libs INTERFACE)
 add_library(boost_headeronly INTERFACE)
 
@@ -659,16 +674,6 @@ endif()
 
 ## OPTIONAL packages
 
-# Find eigen3 or use bundled version
-if (NOT SLIC3R_STATIC)
-    find_package(Eigen3 3.3)
-endif ()
-if (NOT EIGEN3_FOUND)
-    set(EIGEN3_FOUND 1)
-    set(EIGEN3_INCLUDE_DIR ${LIBDIR}/eigen/)
-endif ()
-include_directories(BEFORE SYSTEM ${EIGEN3_INCLUDE_DIR})
-
 # Find expat or use bundled version
 # Always use the system libexpat on Linux.
 
@@ -708,31 +713,8 @@ endif ()
 # l10n
 set(L10N_DIR "${SLIC3R_RESOURCES_DIR}/i18n")
 set(BBL_L18N_DIR "${CMAKE_CURRENT_SOURCE_DIR}/localization/i18n")
-
-if (WIN32)
-    set(GETTEXT_XGETTEXT_EXECUTABLE "${PROJECT_SOURCE_DIR}/tools/xgettext.exe")
-    set(GETTEXT_MSGMERGE_EXECUTABLE "${PROJECT_SOURCE_DIR}/tools/msgmerge.exe")
-    set(GETTEXT_MSGFMT_EXECUTABLE "${PROJECT_SOURCE_DIR}/tools/msgfmt.exe")
-else ()
-    find_program(GETTEXT_XGETTEXT_EXECUTABLE xgettext)
-    find_program(GETTEXT_MSGMERGE_EXECUTABLE msgmerge)
-    find_program(GETTEXT_MSGFMT_EXECUTABLE msgfmt)
-
-    if (NOT GETTEXT_XGETTEXT_EXECUTABLE)
-        set(GETTEXT_XGETTEXT_EXECUTABLE xgettext)
-    endif ()
-
-    if (NOT GETTEXT_MSGMERGE_EXECUTABLE)
-        set(GETTEXT_MSGMERGE_EXECUTABLE msgmerge)
-    endif ()
-
-    if (NOT GETTEXT_MSGFMT_EXECUTABLE)
-        set(GETTEXT_MSGFMT_EXECUTABLE msgfmt)
-    endif ()
-endif ()
-
 add_custom_target(gettext_make_pot
-    COMMAND ${GETTEXT_XGETTEXT_EXECUTABLE} --keyword=L --keyword=_L --keyword=_u8L --keyword=L_CONTEXT:1,2c --keyword=_L_PLURAL:1,2 --add-comments=TRN --from-code=UTF-8 --no-location --debug --boost
+    COMMAND xgettext --keyword=L --keyword=_L --keyword=_u8L --keyword=L_CONTEXT:1,2c --keyword=_L_PLURAL:1,2 --add-comments=TRN --from-code=UTF-8 --no-location --debug --boost
         -f "${BBL_L18N_DIR}/list.txt"
         -o "${BBL_L18N_DIR}/OrcaSlicer.pot"
     COMMAND hintsToPot ${SLIC3R_RESOURCES_DIR} ${BBL_L18N_DIR}
@@ -745,10 +727,12 @@ add_custom_target(gettext_merge_po_with_pot
 )
 file(GLOB BBL_L10N_PO_FILES "${BBL_L18N_DIR}/*/OrcaSlicer*.po")
 foreach(po_file ${BBL_L10N_PO_FILES})
+    GET_FILENAME_COMPONENT(po_dir "${po_file}" DIRECTORY)
+    SET(po_new_file "${po_dir}/OrcaSlicer_.po")
     add_custom_command(
         TARGET gettext_merge_po_with_pot PRE_BUILD
-        COMMAND ${GETTEXT_MSGMERGE_EXECUTABLE} -N -o "${po_file}" "${po_file}" "${BBL_L18N_DIR}/OrcaSlicer.pot"
-        DEPENDS "${po_file}"
+        COMMAND msgmerge -N -o ${po_file} ${po_file} "${BBL_L18N_DIR}/OrcaSlicer.pot"
+        DEPENDS ${po_file}
     )
 endforeach()
 add_custom_target(gettext_po_to_mo
@@ -756,26 +740,17 @@ add_custom_target(gettext_po_to_mo
     COMMENT "Generate localization po files (binary) from mo files (texts)"
 )
 file(GLOB L10N_PO_FILES "${BBL_L18N_DIR}/*/OrcaSlicer*.po")
-foreach(po_file ${L10N_PO_FILES})
-    get_filename_component(po_parent_dir "${po_file}" DIRECTORY)
-    get_filename_component(po_dir "${po_parent_dir}" NAME)
-    set(mo_dir "${L10N_DIR}/${po_dir}")
-    set(mo_file "${mo_dir}/OrcaSlicer.mo")
+foreach(po_file ${BBL_L10N_PO_FILES})
+    GET_FILENAME_COMPONENT(SECOND_FOLDER_ABSOLUTE ${po_file} DIRECTORY)
+    string(REGEX REPLACE ".*/(.*)" "\\1" po_dir "${SECOND_FOLDER_ABSOLUTE}" )
+    SET(mo_file "${L10N_DIR}/${po_dir}/OrcaSlicer.mo")
     add_custom_command(
         TARGET gettext_po_to_mo PRE_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${mo_dir}"
-        COMMAND ${GETTEXT_MSGFMT_EXECUTABLE} --check-format -o "${mo_file}" "${po_file}"
-        #COMMAND ${GETTEXT_MSGFMT_EXECUTABLE} --check-compatibility -o "${mo_file}" "${po_file}"
-        DEPENDS "${po_file}"
+        COMMAND msgfmt ARGS --check-format -o ${mo_file} ${po_file}
+        #COMMAND msgfmt ARGS --check-compatibility -o ${mo_file} ${po_file}
+        DEPENDS ${po_file}
     )
 endforeach()
-
-if (TARGET OrcaSlicer)
-    add_dependencies(OrcaSlicer gettext_po_to_mo)
-endif ()
-if (TARGET OrcaSlicer_app_gui)
-    add_dependencies(OrcaSlicer_app_gui gettext_po_to_mo)
-endif ()
 
 find_package(NLopt 1.4 REQUIRED)
 
@@ -814,8 +789,10 @@ function(orcaslicer_copy_dlls target config postfix output_dlls)
         set(_arch "x64")
     elseif ("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "X86")
         set(_arch "x86")
+    elseif ("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "ARM64")
+        set(_arch "arm64")
     else ()
-        message(FATAL_ERROR "Unable to detect architecture")
+        message(FATAL_ERROR "Unable to detect architecture: ${CMAKE_SYSTEM_PROCESSOR}")
     endif ()
 
     get_property(_is_multi GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
@@ -864,10 +841,6 @@ function(orcaslicer_copy_dlls target config postfix output_dlls)
             ${CMAKE_PREFIX_PATH}/bin/occt/TKXDESTEP.dll
             ${CMAKE_PREFIX_PATH}/bin/occt/TKXSBase.dll
             ${CMAKE_PREFIX_PATH}/bin/freetype.dll
-            ${CMAKE_PREFIX_PATH}/bin/avcodec-61.dll
-            ${CMAKE_PREFIX_PATH}/bin/swresample-5.dll
-            ${CMAKE_PREFIX_PATH}/bin/swscale-8.dll
-            ${CMAKE_PREFIX_PATH}/bin/avutil-59.dll
          DESTINATION ${_out_dir})
 
     set(${output_dlls}
@@ -903,62 +876,10 @@ function(orcaslicer_copy_dlls target config postfix output_dlls)
         ${_out_dir}/TKXSBase.dll
 
         ${_out_dir}/freetype.dll
-        ${_out_dir}/avcodec-61.dll
-        ${_out_dir}/swresample-5.dll
-        ${_out_dir}/swscale-8.dll
-        ${_out_dir}/avutil-59.dll
 
         PARENT_SCOPE
     )
 
-endfunction()
-
-function(orcaslicer_copy_sos target config postfix output_sos)
-
-    set(_out_dir "${CMAKE_CURRENT_BINARY_DIR}")
-    message(STATUS "set out_dir to CMAKE_CURRENT_BINARY_DIR: ${_out_dir}")
-
-    if (EXISTS "/usr/lib/aarch64-linux-gnu/libavcodec.so")
-        file(COPY /usr/lib/aarch64-linux-gnu/libavcodec.so
-                  /usr/lib/aarch64-linux-gnu/libavcodec.so.61
-                  /usr/lib/aarch64-linux-gnu/libavutil.so
-                  /usr/lib/aarch64-linux-gnu/libavutil.so.59
-                  /usr/lib/aarch64-linux-gnu/libswscale.so
-                  /usr/lib/aarch64-linux-gnu/libswscale.so.8
-                  /usr/lib/aarch64-linux-gnu/libswresample.so
-                  /usr/lib/aarch64-linux-gnu/libswresample.so.5
-             DESTINATION ${_out_dir})
-    else()
-        file(COPY ${CMAKE_PREFIX_PATH}/lib/libavcodec.so
-                  ${CMAKE_PREFIX_PATH}/lib/libavcodec.so.61
-                  ${CMAKE_PREFIX_PATH}/lib/libavcodec.so.61.3.100
-                  ${CMAKE_PREFIX_PATH}/lib/libavutil.so
-                  ${CMAKE_PREFIX_PATH}/lib/libavutil.so.59
-                  ${CMAKE_PREFIX_PATH}/lib/libavutil.so.59.8.100
-                  ${CMAKE_PREFIX_PATH}/lib/libswscale.so
-                  ${CMAKE_PREFIX_PATH}/lib/libswscale.so.8
-                  ${CMAKE_PREFIX_PATH}/lib/libswscale.so.8.1.100
-                  ${CMAKE_PREFIX_PATH}/lib/libswresample.so
-                  ${CMAKE_PREFIX_PATH}/lib/libswresample.so.5
-                  ${CMAKE_PREFIX_PATH}/lib/libswresample.so.5.1.100
-             DESTINATION ${_out_dir})
-    endif()
-
-    set(${output_sos}
-        ${_out_dir}/libavcodec.so
-        ${_out_dir}/libavcodec.so.61
-        ${_out_dir}/libavcodec.so.61.3.100
-        ${_out_dir}/libavutil.so
-        ${_out_dir}/libavutil.so.59
-        ${_out_dir}/libavutil.so.59.8.100
-        ${_out_dir}/libswscale.so
-        ${_out_dir}/libswscale.so.8
-        ${_out_dir}/libswscale.so.8.1.100
-        ${_out_dir}/libswresample.so
-        ${_out_dir}/libswresample.so.5
-        ${_out_dir}/libswresample.so.5.1.100
-        PARENT_SCOPE
-    )
 endfunction()
 
 
@@ -1008,20 +929,6 @@ else ()
     install(DIRECTORY "${SLIC3R_RESOURCES_DIR}/" DESTINATION "${CMAKE_INSTALL_PREFIX}/resources")
 endif ()
 
-if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT FLATPAK)
-    set(LIBRARY_FILES
-        ${LIBDIR_BIN}/libavcodec.so.61
-        ${LIBDIR_BIN}/libavcodec.so.61.3.100
-        ${LIBDIR_BIN}/libavutil.so.59
-        ${LIBDIR_BIN}/libavutil.so.59.8.100
-        ${LIBDIR_BIN}/libswresample.so.5
-        ${LIBDIR_BIN}/libswresample.so.5.1.100
-        ${LIBDIR_BIN}/libswscale.so.8
-        ${LIBDIR_BIN}/libswscale.so.8.1.100
-    )
-    install(FILES ${LIBRARY_FILES} DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
-endif ()
-
 install(FILES ${CMAKE_SOURCE_DIR}/LICENSE.txt DESTINATION ".")
 configure_file(${LIBDIR}/dev-utils/platform/unix/fhs.hpp.in ${LIBDIR_BIN}/dev-utils/platform/unix/fhs.hpp)
 
@@ -1038,9 +945,6 @@ set (CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/resources/images\\\\OrcaSlicer.ico"
 set (CPACK_NSIS_MUI_ICON "${CPACK_PACKAGE_ICON}")
 set (CPACK_NSIS_MUI_UNIICON "${CPACK_PACKAGE_ICON}")
 set (CPACK_NSIS_INSTALLED_ICON_NAME  "$INSTDIR\\\\orca-slicer.exe")
-set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "
-    CreateShortCut \\\"$DESKTOP\\\\OrcaSlicer.lnk\\\" \\\"$INSTDIR\\\\orca-slicer.exe\\\"
-")
 set (CPACK_PACKAGE_CHECKSUM SHA256)
 set (CPACK_PACKAGE_INSTALL_REGISTRY_KEY "OrcaSlicer")
 set (CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
@@ -1052,4 +956,28 @@ set (CPACK_RESOURCE_FILE_LICENSE ${CMAKE_SOURCE_DIR}/LICENSE.txt) # must also in
 
 set(CPACK_WIX_UPGRADE_GUID "058245e8-20e0-4a95-9ab7-1acfe17ad511")
 set(CPACK_GENERATOR NSIS)
+
+
+# At install time, stage a genuine Bambu-signed host + DLL next to OrcaSlicer so the
+# unsigned orca-slicer.exe can re-launch under it (the network plugin verifies the host
+# exe's Authenticode signature). The installer runs elevated, so it can write Program
+# Files; the launcher's non-elevated self-heal cannot. $R registers + quadruple-backslash
+# escaping keep cpack's CPackConfig re-parse clean under CMP0010/CMP0053 (same convention
+# as CPACK_NSIS_INSTALLED_ICON_NAME above). No Bambu Studio -> rename to OrcaSlicer.dll.
+set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "
+  SetRegView 64
+  ReadRegStr $R0 HKLM 'SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Uninstall\\\\Bambu Studio' 'DisplayIcon'
+  StrCmp $R0 '' orca_no_bambu 0
+  IfFileExists '$R0' 0 orca_no_bambu
+  CopyFiles /SILENT '$R0' '$INSTDIR\\\\bambu-studio.exe'
+  StrCpy $R1 $R0 -16
+  IfFileExists '$R1BambuStudio.dll' 0 orca_host_done
+  CopyFiles /SILENT '$R1BambuStudio.dll' '$INSTDIR\\\\BambuStudioOriginal.dll'
+  Goto orca_host_done
+  orca_no_bambu:
+  IfFileExists '$INSTDIR\\\\BambuStudio.dll' 0 orca_host_done
+  Rename '$INSTDIR\\\\BambuStudio.dll' '$INSTDIR\\\\OrcaSlicer.dll'
+  orca_host_done:
+")
+
 include(CPack)

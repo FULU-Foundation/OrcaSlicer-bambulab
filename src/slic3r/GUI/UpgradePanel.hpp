@@ -39,28 +39,21 @@ public:
 class AmsPanel : public wxPanel
 {
 public:
-    wxStaticText* m_staticText_ams_model_id;
-    wxStaticText* m_staticText_ams;
-    wxStaticText* m_staticText_ams_sn_val;
-    wxStaticText* m_staticText_ams_ver_val;
-    wxStaticText* m_staticText_beta_version;
-    wxStaticBitmap* m_ams_new_version_img;
+    wxStaticText *m_staticText_ams_model_id;
+    wxStaticText *m_staticText_ams;
+    wxStaticText *m_staticText_ams_sn_val;
+    wxStaticText *m_staticText_ams_ver_val;
+    wxStaticText *m_staticText_beta_version;
+    wxStaticBitmap *m_ams_new_version_img;
     ScalableBitmap upgrade_green_icon;
 
-    wxStaticText* m_fw_link_lbl = nullptr;
-    wxStaticText* m_fw_link = nullptr;
-    wxString m_fw_url;
-
-    wxStaticText* m_fw_status_lbl = nullptr;
-    wxStaticText* m_fw_status = nullptr;
-
-    AmsPanel(wxWindow* parent,
-             wxWindowID id = wxID_ANY,
-             const wxPoint& pos = wxDefaultPosition,
-             const wxSize& size = wxDefaultSize,
-             long style = wxTAB_TRAVERSAL,
-             const wxString& name = wxEmptyString);
-    ~AmsPanel() override;
+    AmsPanel(wxWindow *      parent,
+                     wxWindowID      id    = wxID_ANY,
+                     const wxPoint & pos   = wxDefaultPosition,
+                     const wxSize &  size  = wxDefaultSize,
+                     long            style = wxTAB_TRAVERSAL,
+                     const wxString &name  = wxEmptyString);
+    ~AmsPanel();
 
     void msw_rescale();
 };

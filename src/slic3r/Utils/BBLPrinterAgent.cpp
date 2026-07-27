@@ -4,151 +4,11 @@
 
 #include <boost/log/trivial.hpp>
 
-#include <thread>
-
 namespace Slic3r {
 
 BBLPrinterAgent::BBLPrinterAgent() = default;
 
 BBLPrinterAgent::~BBLPrinterAgent() = default;
-
-int BBLPrinterAgent::invoke_print_request_untracked(LastPrintRequestType type,
-                                                    PrintParams params,
-                                                    OnUpdateStatusFn update_fn,
-                                                    WasCancelledFn cancel_fn,
-                                                    OnWaitFn wait_fn)
-{
-    auto& plugin = BBLNetworkPlugin::instance();
-    auto agent = plugin.get_agent();
-    if (!agent) {
-        return -1;
-    }
-
-    switch (type) {
-    case LastPrintRequestType::start_print: {
-        auto func = plugin.get_start_print();
-        if (!func) {
-            return -1;
-        }
-        if (plugin.use_legacy_network()) {
-            auto legacy_func = reinterpret_cast<func_start_print_legacy>(func);
-            auto legacy_params = BBLNetworkPlugin::as_legacy(params);
-            return legacy_func(agent, legacy_params, update_fn, cancel_fn, wait_fn);
-        }
-        return func(agent, params, update_fn, cancel_fn, wait_fn);
-    }
-    case LastPrintRequestType::start_local_print_with_record: {
-        auto func = plugin.get_start_local_print_with_record();
-        if (!func) {
-            return -1;
-        }
-        if (plugin.use_legacy_network()) {
-            auto legacy_func = reinterpret_cast<func_start_local_print_with_record_legacy>(func);
-            auto legacy_params = BBLNetworkPlugin::as_legacy(params);
-            return legacy_func(agent, legacy_params, update_fn, cancel_fn, wait_fn);
-        }
-        return func(agent, params, update_fn, cancel_fn, wait_fn);
-    }
-    case LastPrintRequestType::start_local_print: {
-        auto func = plugin.get_start_local_print();
-        if (!func) {
-            return -1;
-        }
-        if (plugin.use_legacy_network()) {
-            auto legacy_func = reinterpret_cast<func_start_local_print_legacy>(func);
-            auto legacy_params = BBLNetworkPlugin::as_legacy(params);
-            return legacy_func(agent, legacy_params, update_fn, cancel_fn);
-        }
-        return func(agent, params, update_fn, cancel_fn);
-    }
-    case LastPrintRequestType::start_sdcard_print: {
-        auto func = plugin.get_start_sdcard_print();
-        if (!func) {
-            return -1;
-        }
-        if (plugin.use_legacy_network()) {
-            auto legacy_func = reinterpret_cast<func_start_sdcard_print_legacy>(func);
-            auto legacy_params = BBLNetworkPlugin::as_legacy(params);
-            return legacy_func(agent, legacy_params, update_fn, cancel_fn);
-        }
-        return func(agent, params, update_fn, cancel_fn);
-    }
-    default:
-        return -1;
-    }
-}
-
-void BBLPrinterAgent::remember_last_print_request(LastPrintRequestType type,
-                                                 const PrintParams& params,
-                                                 OnUpdateStatusFn update_fn,
-                                                 WasCancelledFn cancel_fn,
-                                                 OnWaitFn wait_fn)
-{
-    std::lock_guard<std::mutex> lock(m_last_print_request_mutex);
-    m_last_print_request.type = type;
-    m_last_print_request.params = params;
-    m_last_print_request.update_fn = update_fn;
-    m_last_print_request.cancel_fn = cancel_fn;
-    m_last_print_request.wait_fn = wait_fn;
-    m_last_print_request.retry_count = 0;
-}
-
-bool BBLPrinterAgent::retry_last_print_request(const std::string& dev_id)
-{
-    LastPrintRequestType type = LastPrintRequestType::none;
-    PrintParams params;
-    OnUpdateStatusFn update_fn = nullptr;
-    WasCancelledFn cancel_fn = nullptr;
-    OnWaitFn wait_fn = nullptr;
-    int retry_count = 0;
-
-    {
-        std::lock_guard<std::mutex> lock(m_last_print_request_mutex);
-        if (m_last_print_request.type == LastPrintRequestType::none) {
-            return false;
-        }
-        if (m_last_print_request.retry_count >= 3) {
-            return false;
-        }
-        if (!dev_id.empty() && !m_last_print_request.params.dev_id.empty() && m_last_print_request.params.dev_id != dev_id) {
-            return false;
-        }
-
-        type = m_last_print_request.type;
-        params = m_last_print_request.params;
-        update_fn = m_last_print_request.update_fn;
-        cancel_fn = m_last_print_request.cancel_fn;
-        wait_fn = m_last_print_request.wait_fn;
-
-        m_last_print_request.retry_count++;
-        retry_count = m_last_print_request.retry_count;
-    }
-
-    if (!update_fn) {
-        update_fn = [](int, int, std::string) {};
-    }
-    if (!cancel_fn) {
-        cancel_fn = []() { return false; };
-    }
-    if (!wait_fn) {
-        wait_fn = [](int, std::string) { return true; };
-    }
-
-    std::thread([this, type, params, update_fn, cancel_fn, wait_fn, retry_count]() mutable {
-        BOOST_LOG_TRIVIAL(info)
-            << "auto retry last print request attempt=" << retry_count
-            << ", dev_id=" << params.dev_id;
-
-        const int result = invoke_print_request_untracked(type, params, update_fn, cancel_fn, wait_fn);
-
-        BOOST_LOG_TRIVIAL(info)
-            << "auto retry last print request result=" << result
-            << ", attempt=" << retry_count
-            << ", dev_id=" << params.dev_id;
-    }).detach();
-
-    return true;
-}
 
 void BBLPrinterAgent::set_cloud_agent(std::shared_ptr<ICloudServiceAgent> cloud)
 {
@@ -349,6 +209,54 @@ int BBLPrinterAgent::set_user_selected_machine(std::string dev_id)
 }
 
 // ============================================================================
+// Subscriptions
+// ============================================================================
+
+int BBLPrinterAgent::start_subscribe(std::string module)
+{
+    auto& plugin = BBLNetworkPlugin::instance();
+    auto agent = plugin.get_agent();
+    auto func = plugin.get_start_subscribe();
+    if (func && agent) {
+        return func(agent, module);
+    }
+    return -1;
+}
+
+int BBLPrinterAgent::stop_subscribe(std::string module)
+{
+    auto& plugin = BBLNetworkPlugin::instance();
+    auto agent = plugin.get_agent();
+    auto func = plugin.get_stop_subscribe();
+    if (func && agent) {
+        return func(agent, module);
+    }
+    return -1;
+}
+
+int BBLPrinterAgent::add_subscribe(std::vector<std::string> dev_list)
+{
+    auto& plugin = BBLNetworkPlugin::instance();
+    auto agent = plugin.get_agent();
+    auto func = plugin.get_add_subscribe();
+    if (func && agent) {
+        return func(agent, dev_list);
+    }
+    return -1;
+}
+
+int BBLPrinterAgent::del_subscribe(std::vector<std::string> dev_list)
+{
+    auto& plugin = BBLNetworkPlugin::instance();
+    auto agent = plugin.get_agent();
+    auto func = plugin.get_del_subscribe();
+    if (func && agent) {
+        return func(agent, dev_list);
+    }
+    return -1;
+}
+
+// ============================================================================
 // Agent Information
 // ============================================================================
 AgentInfo BBLPrinterAgent::get_agent_info_static()
@@ -362,20 +270,34 @@ AgentInfo BBLPrinterAgent::get_agent_info_static()
 
 int BBLPrinterAgent::start_print(PrintParams params, OnUpdateStatusFn update_fn, WasCancelledFn cancel_fn, OnWaitFn wait_fn)
 {
-    const int result = invoke_print_request_untracked(LastPrintRequestType::start_print, params, update_fn, cancel_fn, wait_fn);
-    if (result == 0) {
-        remember_last_print_request(LastPrintRequestType::start_print, params, update_fn, cancel_fn, wait_fn);
+    auto& plugin = BBLNetworkPlugin::instance();
+    auto agent = plugin.get_agent();
+    auto func = plugin.get_start_print();
+    if (func && agent) {
+        if (plugin.use_legacy_network()) {
+            auto legacy_func = reinterpret_cast<func_start_print_legacy>(func);
+            auto legacy_params = BBLNetworkPlugin::as_legacy(params);
+            return legacy_func(agent, legacy_params, update_fn, cancel_fn, wait_fn);
+        }
+        return func(agent, params, update_fn, cancel_fn, wait_fn);
     }
-    return result;
+    return -1;
 }
 
 int BBLPrinterAgent::start_local_print_with_record(PrintParams params, OnUpdateStatusFn update_fn, WasCancelledFn cancel_fn, OnWaitFn wait_fn)
 {
-    const int result = invoke_print_request_untracked(LastPrintRequestType::start_local_print_with_record, params, update_fn, cancel_fn, wait_fn);
-    if (result == 0) {
-        remember_last_print_request(LastPrintRequestType::start_local_print_with_record, params, update_fn, cancel_fn, wait_fn);
+    auto& plugin = BBLNetworkPlugin::instance();
+    auto agent = plugin.get_agent();
+    auto func = plugin.get_start_local_print_with_record();
+    if (func && agent) {
+        if (plugin.use_legacy_network()) {
+            auto legacy_func = reinterpret_cast<func_start_local_print_with_record_legacy>(func);
+            auto legacy_params = BBLNetworkPlugin::as_legacy(params);
+            return legacy_func(agent, legacy_params, update_fn, cancel_fn, wait_fn);
+        }
+        return func(agent, params, update_fn, cancel_fn, wait_fn);
     }
-    return result;
+    return -1;
 }
 
 int BBLPrinterAgent::start_send_gcode_to_sdcard(PrintParams params, OnUpdateStatusFn update_fn, WasCancelledFn cancel_fn, OnWaitFn wait_fn)
@@ -396,20 +318,34 @@ int BBLPrinterAgent::start_send_gcode_to_sdcard(PrintParams params, OnUpdateStat
 
 int BBLPrinterAgent::start_local_print(PrintParams params, OnUpdateStatusFn update_fn, WasCancelledFn cancel_fn)
 {
-    const int result = invoke_print_request_untracked(LastPrintRequestType::start_local_print, params, update_fn, cancel_fn, nullptr);
-    if (result == 0) {
-        remember_last_print_request(LastPrintRequestType::start_local_print, params, update_fn, cancel_fn, nullptr);
+    auto& plugin = BBLNetworkPlugin::instance();
+    auto agent = plugin.get_agent();
+    auto func = plugin.get_start_local_print();
+    if (func && agent) {
+        if (plugin.use_legacy_network()) {
+            auto legacy_func = reinterpret_cast<func_start_local_print_legacy>(func);
+            auto legacy_params = BBLNetworkPlugin::as_legacy(params);
+            return legacy_func(agent, legacy_params, update_fn, cancel_fn);
+        }
+        return func(agent, params, update_fn, cancel_fn);
     }
-    return result;
+    return -1;
 }
 
 int BBLPrinterAgent::start_sdcard_print(PrintParams params, OnUpdateStatusFn update_fn, WasCancelledFn cancel_fn)
 {
-    const int result = invoke_print_request_untracked(LastPrintRequestType::start_sdcard_print, params, update_fn, cancel_fn, nullptr);
-    if (result == 0) {
-        remember_last_print_request(LastPrintRequestType::start_sdcard_print, params, update_fn, cancel_fn, nullptr);
+    auto& plugin = BBLNetworkPlugin::instance();
+    auto agent = plugin.get_agent();
+    auto func = plugin.get_start_sdcard_print();
+    if (func && agent) {
+        if (plugin.use_legacy_network()) {
+            auto legacy_func = reinterpret_cast<func_start_sdcard_print_legacy>(func);
+            auto legacy_params = BBLNetworkPlugin::as_legacy(params);
+            return legacy_func(agent, legacy_params, update_fn, cancel_fn);
+        }
+        return func(agent, params, update_fn, cancel_fn);
     }
-    return result;
+    return -1;
 }
 
 // ============================================================================

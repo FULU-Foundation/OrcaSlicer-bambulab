@@ -14,6 +14,7 @@
 #include <wx/sizer.h>
 #include <wx/gbsizer.h>
 #include <wx/webrequest.h>
+#include "wxMediaCtrl2.h"
 #include "MediaPlayCtrl.h"
 #include "AMSSetting.hpp"
 #include "Calibration.hpp"
@@ -441,7 +442,7 @@ protected:
     wxStaticBitmap* m_camera_switch_button;
 
 
-    BBLMediaCtrl *  m_media_ctrl;
+    wxMediaCtrl2 *  m_media_ctrl;
     MediaPlayCtrl * m_media_play_ctrl;
 
     Label *         m_staticText_printing;

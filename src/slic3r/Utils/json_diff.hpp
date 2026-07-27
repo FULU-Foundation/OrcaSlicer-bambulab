@@ -6,28 +6,7 @@
 #include <vector>
 
 #include "nlohmann/json.hpp"
-#include <wx/string.h>
 
-namespace nlohmann {
-template <>
-struct adl_serializer<wxString> {
-    static void to_json(json& j, const wxString& value)
-    {
-        const wxCharBuffer utf8 = value.ToUTF8();
-        j = utf8 ? std::string(utf8.data()) : std::string();
-    }
-
-    static void from_json(const json& j, wxString& value)
-    {
-        if (!j.is_string()) {
-            value.clear();
-            return;
-        }
-        const auto& s = j.get_ref<const std::string&>();
-        value = wxString::FromUTF8(s.c_str());
-    }
-};
-}
 
 using json = nlohmann::json;
 using namespace std;

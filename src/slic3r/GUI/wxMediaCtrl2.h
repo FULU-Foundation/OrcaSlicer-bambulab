@@ -13,7 +13,9 @@
 
 wxDECLARE_EVENT(EVT_MEDIA_CTRL_STAT, wxCommandEvent);
 
-void wxMediaCtrl_OnSize(wxWindow * ctrl, wxSize const & videoSize, int width, int height);
+#if defined(__LINUX__) && defined(__WXGTK__)
+typedef struct _GstElement GstElement;
+#endif
 
 #ifdef __WXMAC__
 
@@ -21,7 +23,7 @@ class wxMediaCtrl2 : public wxWindow
 {
 public:
     wxMediaCtrl2(wxWindow * parent);
-
+    
     ~wxMediaCtrl2();
 
     void Load(wxURI url);
@@ -38,13 +40,13 @@ public:
 
     int GetLastError() const { return m_error; }
 
-    static constexpr wxMediaState MEDIASTATE_BUFFERING = (wxMediaState) 6;
+    static inline const wxMediaState MEDIASTATE_BUFFERING = static_cast<wxMediaState>(6);
 
 protected:
     void DoSetSize(int x, int y, int width, int height, int sizeFlags) override;
 
-    static void bambu_log(void const *ctx, int level, char const *msg);
-
+    static void bambu_log(void const * ctx, int level, char const * msg);
+    
     void NotifyStopped();
 
 private:
@@ -61,6 +63,7 @@ class wxMediaCtrl2 : public wxMediaCtrl
 {
 public:
     wxMediaCtrl2(wxWindow *parent);
+    ~wxMediaCtrl2();
 
     void Load(wxURI url);
 
@@ -69,6 +72,8 @@ public:
     void Stop();
 
     void SetIdleImage(wxString const & image);
+
+    wxMediaState GetState();
 
     int GetLastError() const;
 
@@ -86,6 +91,21 @@ protected:
 #endif
 
 private:
+#if defined(__LINUX__) && defined(__WXGTK__)
+    bool CreateGtkSinkPlayer();
+    void DestroyGtkSinkPlayer();
+    void PostGtkSinkStateEvent(int id = 0);
+
+    bool m_native_wayland = false;
+    bool m_use_gtk_sink = false;
+    wxString m_gtk_sink_error;
+    bool m_gtk_sink_error_notified = false;
+    GstElement *m_gtk_playbin = nullptr;
+    GstElement *m_gtk_sink = nullptr;
+    unsigned int m_gtk_bus_watch_id = 0;
+    wxWindow *m_gtk_video_window = nullptr;
+    wxMediaState m_gtk_state = wxMEDIASTATE_STOPPED;
+#endif
     wxString m_idle_image;
     int      m_error = 0;
     bool     m_loaded = false;

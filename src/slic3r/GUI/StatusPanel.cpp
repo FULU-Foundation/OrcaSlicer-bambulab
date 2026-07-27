@@ -1526,7 +1526,7 @@ wxBoxSizer *StatusBasePanel::create_monitoring_page()
 //    media_ctrl_panel              = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxDefaultSize);
 //    media_ctrl_panel->SetBackgroundColour(*wxBLACK);
 //    wxBoxSizer *bSizer_monitoring = new wxBoxSizer(wxVERTICAL);
-    m_media_ctrl = new BBLMediaCtrl(this);
+    m_media_ctrl = new wxMediaCtrl2(this);
     m_media_ctrl->SetMinSize(wxSize(PAGE_MIN_WIDTH, FromDIP(288)));
 
     m_custom_camera_view = WebView::CreateWebView(this, wxEmptyString);

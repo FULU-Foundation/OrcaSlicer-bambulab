@@ -143,18 +143,14 @@ function check_available_memory_and_disk() {
     MIN_DISK_KB=$((10 * 1024 * 1024))
 
     if [[ ${FREE_MEM_GB} -le ${MIN_MEM_GB} ]] ; then
-        echo -e "
-ERROR: Orca Slicer Builder requires at least ${MIN_MEM_GB}G of 'available' mem (system has only ${FREE_MEM_GB}G available)"
+        echo -e "\nERROR: Orca Slicer Builder requires at least ${MIN_MEM_GB}G of 'available' mem (system has only ${FREE_MEM_GB}G available)"
         echo && free --human && echo
         echo "Invoke with -r to skip RAM and disk checks."
         exit 2
     fi
 
     if [[ ${FREE_DISK_KB} -le ${MIN_DISK_KB} ]] ; then
-        echo -e "
-ERROR: Orca Slicer Builder requires at least $(echo "${MIN_DISK_KB}" |awk '{ printf "%.1fG
-", $1/1024/1024; }') (system has only $(echo "${FREE_DISK_KB}" | awk '{ printf "%.1fG
-", $1/1024/1024; }') disk free)"
+        echo -e "\nERROR: Orca Slicer Builder requires at least $(echo "${MIN_DISK_KB}" |awk '{ printf "%.1fG\n", $1/1024/1024; }') (system has only $(echo "${FREE_DISK_KB}" | awk '{ printf "%.1fG\n", $1/1024/1024; }') disk free)"
         echo && df --human-readable . && echo
         echo "Invoke with -r to skip ram and disk checks."
         exit 1
@@ -463,11 +459,11 @@ elif [[ "${DISTRIBUTION_LIKE}" == *"suse"* ]] ; then
 fi
 
 if [ ! -f "./scripts/linux.d/${DISTRIBUTION}" ] ; then
-    echo "Your distribution "${DISTRIBUTION}" is not supported by system-dependency scripts in ./scripts/linux.d/"
+    echo "Your distribution \"${DISTRIBUTION}\" is not supported by system-dependency scripts in ./scripts/linux.d/"
     echo "Please resolve dependencies manually and contribute a script for your distribution to upstream."
     exit 1
 else
-    echo "resolving system dependencies for distribution "${DISTRIBUTION}" ..."
+    echo "resolving system dependencies for distribution \"${DISTRIBUTION}\" ..."
     # shellcheck source=/dev/null
     source "./scripts/linux.d/${DISTRIBUTION}"
 fi
@@ -508,6 +504,15 @@ if [[ -n "${USE_LLD}" ]] ; then
     fi
 fi
 
+# Auto-detect ccache for faster rebuilds
+export CMAKE_CCACHE_ARGS=()
+if command -v ccache >/dev/null 2>&1 ; then
+    echo "ccache found at $(command -v ccache), enabling compiler caching..."
+    export CMAKE_CCACHE_ARGS=(-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
+else
+    echo "Note: ccache not found. Install ccache for faster rebuilds."
+fi
+
 if [[ -n "${BUILD_DEPS}" ]] ; then
     echo "Configuring dependencies..."
     read -r -a BUILD_ARGS <<< "${DEPS_EXTRA_BUILD_ARGS}"
@@ -521,7 +526,7 @@ if [[ -n "${BUILD_DEPS}" ]] ; then
     fi
 
     print_and_run cmake -S deps -B deps/$BUILD_DIR "${CMAKE_C_CXX_COMPILER_CLANG[@]}" "${CMAKE_LLD_LINKER_ARGS[@]}" -G Ninja "${COLORED_OUTPUT}" "${BUILD_ARGS[@]}"
-    print_and_run cmake --build deps/$BUILD_DIR
+    print_and_run cmake --build deps/$BUILD_DIR -j1
 fi
 
 if [[ -n "${BUILD_ORCA}" ]] || [[ -n "${BUILD_TESTS}" ]] ; then
@@ -540,7 +545,11 @@ if [[ -n "${BUILD_ORCA}" ]] || [[ -n "${BUILD_TESTS}" ]] ; then
         BUILD_ARGS+=(-DORCA_UPDATER_SIG_KEY="${ORCA_UPDATER_SIG_KEY}")
     fi
 
-    print_and_run cmake -S . -B $BUILD_DIR "${CMAKE_C_CXX_COMPILER_CLANG[@]}" "${CMAKE_LLD_LINKER_ARGS[@]}" -G "Ninja Multi-Config" -DSLIC3R_PCH=${SLIC3R_PRECOMPILED_HEADERS} -DORCA_TOOLS=ON "${COLORED_OUTPUT}" "${BUILD_ARGS[@]}"
+    print_and_run cmake -S . -B $BUILD_DIR "${CMAKE_C_CXX_COMPILER_CLANG[@]}" "${CMAKE_LLD_LINKER_ARGS[@]}" "${CMAKE_CCACHE_ARGS[@]}" -G "Ninja Multi-Config" \
+-DSLIC3R_PCH=${SLIC3R_PRECOMPILED_HEADERS} \
+-DORCA_TOOLS=ON \
+"${COLORED_OUTPUT}" \
+"${BUILD_ARGS[@]}"
     echo "done"
     if [[ -n "${BUILD_ORCA}" ]]; then
 	echo "Building OrcaSlicer ..."
@@ -572,8 +581,6 @@ if [[ -n "${BUILD_IMAGE}" || -n "${BUILD_ORCA}" ]] ; then
 fi
 
 elapsed=$SECONDS
-printf "
-Build completed in %dh %dm %ds
-" $((elapsed/3600)) $((elapsed%3600/60)) $((elapsed%60))
+printf "\nBuild completed in %dh %dm %ds\n" $((elapsed/3600)) $((elapsed%3600/60)) $((elapsed%60))
 
 popd > /dev/null # ${SCRIPT_PATH}

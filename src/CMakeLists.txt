@@ -44,6 +44,18 @@ if (SLIC3R_GUI)
         include(${wxWidgets_USE_FILE})
     endif()
 
+    if(APPLE AND TARGET wx::wxgl)
+        # Newer wxWidgets CMake exports may inject the macOS OpenGL framework
+        # as a quoted file path inside wx::wxgl, which Ninja then treats as a
+        # missing input file. Orca links OpenGL explicitly elsewhere, so strip
+        # these broken pseudo-paths from the imported target.
+        get_target_property(_wx_gl_libs wx::wxgl INTERFACE_LINK_LIBRARIES)
+        if(_wx_gl_libs)
+            list(FILTER _wx_gl_libs EXCLUDE REGEX "framework OpenGL")
+            set_target_properties(wx::wxgl PROPERTIES INTERFACE_LINK_LIBRARIES "${_wx_gl_libs}")
+        endif()
+    endif()
+
     find_package(JPEG QUIET)
 
     string(REGEX MATCH "wxpng" WX_PNG_BUILTIN ${wxWidgets_LIBRARIES})
@@ -117,6 +129,23 @@ if (MINGW)
     set_target_properties(OrcaSlicer PROPERTIES PREFIX "")
 endif (MINGW)
 
+if (MSVC)
+    # We reuse prebuilt OpenSSL/CURL (built against a dynamic zlib1.dll) next to
+    # OrcaSlicer's static zlib, so the link sees a duplicate zlib (import vs
+    # static objects). zlib's ABI is stable across 1.2.x; let the linker keep
+    # the first definition rather than erroring. /IGNORE:4006 mutes the spam.
+    target_link_options(OrcaSlicer PRIVATE /FORCE:MULTIPLE /IGNORE:4006)
+endif ()
+
+if (WIN32)
+    # Emit the studio DLL as BambuStudio.dll. The Bambu network plugin looks up
+    # the studio module by this exact name on its control-command signing path,
+    # so naming our forked DLL OrcaSlicer.dll connects but breaks control (e.g.
+    # filament color / AMS). The DLL's (missing) signature is handled by
+    # PluginVerifyRedirect; only the filename has to match.
+    set_target_properties(OrcaSlicer PROPERTIES OUTPUT_NAME "BambuStudio")
+endif ()
+
 if (NOT WIN32 AND NOT APPLE)
     # Binary name on unix like systems (Linux, Unix)
     set_target_properties(OrcaSlicer PROPERTIES OUTPUT_NAME "orca-slicer")
@@ -125,81 +154,6 @@ if (NOT WIN32 AND NOT APPLE)
 endif ()
 
 target_link_libraries(OrcaSlicer libslic3r cereal::cereal)
-
-set(PJARCZAK_WINDOWS_RUNTIME_SUPPORT_FILES "")
-set(PJARCZAK_OPTIONAL_WINDOWS_RUNTIME_FILES "")
-if (WIN32)
-    foreach(_runtime_support_file
-        "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/wsl/pjarczak_wsl_distro.txt"
-        "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/wsl/install_runtime.ps1"
-        "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/wsl/install_runtime.cmd"
-        "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/wsl/verify_runtime.ps1"
-        "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/wsl/pjarczak_wsl_run_host.sh"
-        "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/wsl/pjarczak_plugin_cache_subdir.txt"
-        "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/release/assemble_windows_runtime_bundle.ps1")
-        if (EXISTS "${_runtime_support_file}")
-            file(TO_CMAKE_PATH "${_runtime_support_file}" _runtime_support_file_cmake)
-            list(APPEND PJARCZAK_WINDOWS_RUNTIME_SUPPORT_FILES "${_runtime_support_file_cmake}")
-        endif()
-    endforeach()
-
-    if (DEFINED PJARCZAK_WSL_RUNTIME_DIR AND NOT "${PJARCZAK_WSL_RUNTIME_DIR}" STREQUAL "")
-        if (NOT EXISTS "${PJARCZAK_WSL_RUNTIME_DIR}")
-            message(FATAL_ERROR "PJARCZAK_WSL_RUNTIME_DIR does not exist: ${PJARCZAK_WSL_RUNTIME_DIR}")
-        endif()
-
-        file(GLOB PJARCZAK_WSL_RUNTIME_DIR_GLOB LIST_DIRECTORIES false "${PJARCZAK_WSL_RUNTIME_DIR}/*")
-        if (NOT PJARCZAK_WSL_RUNTIME_DIR_GLOB)
-            message(FATAL_ERROR "PJARCZAK_WSL_RUNTIME_DIR is empty: ${PJARCZAK_WSL_RUNTIME_DIR}")
-        endif()
-
-        foreach(_runtime_file ${PJARCZAK_WSL_RUNTIME_DIR_GLOB})
-            if (EXISTS "${_runtime_file}" AND NOT IS_DIRECTORY "${_runtime_file}")
-                file(TO_CMAKE_PATH "${_runtime_file}" _runtime_file_cmake)
-                list(APPEND PJARCZAK_OPTIONAL_WINDOWS_RUNTIME_FILES "${_runtime_file_cmake}")
-            endif()
-        endforeach()
-    else()
-        foreach(_runtime_file
-            "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_linux_host/runtime/linux-x86_64/pjarczak_bambu_linux_host"
-            "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_linux_host/runtime/linux-x86_64/pjarczak_bambu_linux_host_abi1"
-            "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_linux_host/runtime/linux-x86_64/pjarczak_bambu_linux_host_abi0"
-            "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_linux_host/runtime/linux-x86_64/libbambu_networking.so"
-            "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_linux_host/runtime/linux-x86_64/libBambuSource.so"
-            "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_linux_host/runtime/linux-x86_64/linux_payload_manifest.json"
-            "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_linux_host/runtime/linux-x86_64/libcrypto.so.3"
-            "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_linux_host/runtime/linux-x86_64/libz.so.1"
-            "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_linux_host/runtime/linux-x86_64/libzstd.so.1"
-            "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/rootfs/windows-wsl2-rootfs.tar"
-            "${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/windows-wsl2-rootfs.tar")
-            if (EXISTS "${_runtime_file}")
-                file(TO_CMAKE_PATH "${_runtime_file}" _runtime_file_cmake)
-                list(APPEND PJARCZAK_OPTIONAL_WINDOWS_RUNTIME_FILES "${_runtime_file_cmake}")
-            endif()
-        endforeach()
-
-        foreach(_cert_candidate
-            "${CMAKE_SOURCE_DIR}/cert/ca-certificates.crt"
-            "${CMAKE_SOURCE_DIR}/resources/cert/ca-certificates.crt")
-            if (EXISTS "${_cert_candidate}")
-                file(TO_CMAKE_PATH "${_cert_candidate}" _runtime_file_cmake)
-                list(APPEND PJARCZAK_OPTIONAL_WINDOWS_RUNTIME_FILES "${_runtime_file_cmake}")
-                break()
-            endif()
-        endforeach()
-
-        foreach(_cert_candidate
-            "${CMAKE_SOURCE_DIR}/cert/slicer_base64.cer"
-            "${CMAKE_SOURCE_DIR}/resources/cert/slicer_base64.cer")
-            if (EXISTS "${_cert_candidate}")
-                file(TO_CMAKE_PATH "${_cert_candidate}" _runtime_file_cmake)
-                list(APPEND PJARCZAK_OPTIONAL_WINDOWS_RUNTIME_FILES "${_runtime_file_cmake}")
-                break()
-            endif()
-        endforeach()
-    endif()
-endif()
-
 # target_include_directories(OrcaSlicer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/slic3r)
 if (APPLE)
 #    add_compile_options(-stdlib=libc++)
@@ -221,7 +175,7 @@ target_link_libraries(OrcaSlicer libslic3r_gui)
     if (MSVC)
         # Generate debug symbols even in release mode.
         target_link_options(OrcaSlicer PUBLIC "$<$<CONFIG:RELEASE>:/DEBUG>")
-        target_link_libraries(OrcaSlicer user32.lib Setupapi.lib)
+        target_link_libraries(OrcaSlicer ws2_32.lib user32.lib Setupapi.lib)
     elseif (MINGW)
         target_link_libraries(OrcaSlicer ws2_32 uxtheme setupapi)
     elseif (APPLE)
@@ -294,16 +248,6 @@ if (WIN32)
 
 
 else ()
-    if (NOT APPLE AND NOT FLATPAK)
-        set(output_sos_Release "")
-        set(output_sos_Debug "")
-        add_custom_target(OrcaSlicerSosCopy ALL DEPENDS OrcaSlicer)
-        if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-            orcaslicer_copy_sos(OrcaSlicerSosCopy "Debug" "d" output_sos_Debug)
-        else()
-            orcaslicer_copy_sos(OrcaSlicerSosCopy "Release" "" output_sos_Release)
-        endif()
-    endif()
     if (APPLE AND NOT CMAKE_MACOSX_BUNDLE)
         # On OSX, the name of the binary matches the name of the Application.
         add_custom_command(TARGET OrcaSlicer POST_BUILD
@@ -357,20 +301,7 @@ if (WIN32)
     if (MSVC)
         install(TARGETS OrcaSlicer_app_gui RUNTIME DESTINATION ".")
     endif ()
-    if (TARGET pjarczak_bambu_networking_bridge)
-        install(TARGETS pjarczak_bambu_networking_bridge RUNTIME DESTINATION ".")
-    endif ()
-    if (PJARCZAK_WINDOWS_RUNTIME_SUPPORT_FILES)
-        install(FILES ${PJARCZAK_WINDOWS_RUNTIME_SUPPORT_FILES} DESTINATION ".")
-    endif()
-    if (PJARCZAK_OPTIONAL_WINDOWS_RUNTIME_FILES)
-        install(FILES ${PJARCZAK_OPTIONAL_WINDOWS_RUNTIME_FILES} DESTINATION ".")
-    endif()
     install(FILES ${output_dlls_${build_type}} DESTINATION ".")
 else ()
-    if (APPLE)
-    else()
-        install(FILES ${output_sos_${build_type}} DESTINATION "${CMAKE_INSTALL_PREFIX}")
-    endif()
     install(TARGETS OrcaSlicer RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" BUNDLE DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif ()

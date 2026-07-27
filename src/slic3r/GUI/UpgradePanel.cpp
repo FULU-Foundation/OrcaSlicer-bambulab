@@ -10,140 +10,9 @@
 
 #include "DeviceCore/DevFilaSystem.h"
 #include "DeviceCore/DevManager.h"
-#include <wx/cursor.h>
-#include <wx/regex.h>
-#include <wx/utils.h>
-#include <atomic>
-#include <mutex>
-#include <thread>
-#include "slic3r/Utils/Http.hpp"
 
 namespace Slic3r {
 namespace GUI {
-
-static inline bool is_custom_sn(const wxString& sn_upper)
-{
-    return sn_upper.length() >= 3
-        && sn_upper[0] == '0'
-        && sn_upper[1] == 'E'
-        && sn_upper[2] == 'A';
-}
-
-static const wxString kBmcuVersionUrlBase =
-    "https://raw.githubusercontent.com/jarczakpawel/BMCU-C-PJARCZAK/main/version";
-
-static std::atomic<int> g_bmcu_ver_state{0};
-static std::atomic<long long> g_bmcu_ver_last_try_ms{0};
-
-static std::mutex g_bmcu_ver_mtx;
-static wxString g_bmcu_ver_remote;
-static wxString g_bmcu_ver_err;
-
-static inline wxString bmcu_norm_ver_strict_x4(const wxString& in)
-{
-    wxString s = in;
-    s.Trim(true).Trim(false);
-
-    const int lf = s.Find('\n');
-    if (lf != wxNOT_FOUND)
-        s = s.Left(lf);
-
-    const int cr = s.Find('\r');
-    if (cr != wxNOT_FOUND)
-        s = s.Left(cr);
-
-    s.Trim(true).Trim(false);
-    return s;
-}
-
-static inline bool bmcu_is_ver_strict_x4(const wxString& s)
-{
-    wxRegEx re("^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$");
-    return re.Matches(s);
-}
-
-static void bmcu_start_github_version_check()
-{
-    const int st = g_bmcu_ver_state.load(std::memory_order_acquire);
-    if (st == 1 || st == 2)
-        return;
-
-    const long long now_ms = (long long) wxGetUTCTimeMillis().GetValue();
-    const long long last_ms = g_bmcu_ver_last_try_ms.load(std::memory_order_acquire);
-
-    if (st == 3 && (now_ms - last_ms) < 10000)
-        return;
-
-    g_bmcu_ver_last_try_ms.store(now_ms, std::memory_order_release);
-    g_bmcu_ver_state.store(1, std::memory_order_release);
-
-    std::thread([]() {
-        std::string url = kBmcuVersionUrlBase.ToStdString();
-        url += "?ts=" + std::to_string((unsigned long long) wxGetUTCTimeMillis().GetValue());
-
-        std::string body;
-        std::string err;
-        unsigned http_status = 0;
-
-        try {
-            Slic3r::Http::get(url)
-                .timeout_connect(5)
-                .timeout_max(10)
-                .size_limit(512)
-                .header("User-Agent", "BambuStudio")
-                .on_complete([&](std::string b, unsigned st2) {
-                    body = std::move(b);
-                    http_status = st2;
-                })
-                .on_error([&](std::string b, std::string e, unsigned st2) {
-                    body = std::move(b);
-                    err = std::move(e);
-                    http_status = st2;
-                })
-                .perform_sync();
-        } catch (const std::exception& e) {
-            err = e.what();
-        }
-
-        if (!err.empty() || http_status == 0 || http_status >= 400) {
-            wxString werr;
-            if (!err.empty())
-                werr = wxString::FromUTF8(err);
-            else
-                werr = wxString::Format("HTTP %u", http_status);
-
-            std::lock_guard<std::mutex> lk(g_bmcu_ver_mtx);
-            g_bmcu_ver_err = werr;
-            g_bmcu_ver_state.store(3, std::memory_order_release);
-            return;
-        }
-
-        wxString content = wxString::FromUTF8(body);
-        content = bmcu_norm_ver_strict_x4(content);
-
-        if (!bmcu_is_ver_strict_x4(content)) {
-            std::lock_guard<std::mutex> lk(g_bmcu_ver_mtx);
-            g_bmcu_ver_err = "Invalid version format (expected x.x.x.x)";
-            g_bmcu_ver_state.store(3, std::memory_order_release);
-            return;
-        }
-
-        {
-            std::lock_guard<std::mutex> lk(g_bmcu_ver_mtx);
-            g_bmcu_ver_remote = content;
-            g_bmcu_ver_err.clear();
-        }
-        g_bmcu_ver_state.store(2, std::memory_order_release);
-    }).detach();
-}
-
-static bool bmcu_get_remote_version(wxString& out_ver, wxString& out_err)
-{
-    std::lock_guard<std::mutex> lk(g_bmcu_ver_mtx);
-    out_ver = g_bmcu_ver_remote;
-    out_err = g_bmcu_ver_err;
-    return (g_bmcu_ver_state.load(std::memory_order_acquire) == 2) && !out_ver.empty();
-}
 
 static const wxColour TEXT_NORMAL_CLR = wxColour(0, 150, 136);
 static const wxColour TEXT_FAILED_CLR = wxColour(255, 111, 0);
@@ -789,7 +658,6 @@ void MachineInfoPanel::update_version_text(MachineObject* obj)
 void MachineInfoPanel::update_ams_ext(MachineObject *obj)
 {
     bool has_hub_model = false;
-    bool has_custom_ams_sn = false;
 
     bool is_o_series = obj->is_series_o();
 
@@ -951,7 +819,7 @@ void MachineInfoPanel::update_ams_ext(MachineObject *obj)
                 }
             }
 
-            for (size_t i = 0; i < m_amspanel_list.GetCount(); i++) {
+            for (auto i = 0; i < m_amspanel_list.GetCount(); i++) {
                 AmsPanel* amspanel = m_amspanel_list[i];
                 amspanel->Hide();
             }
@@ -1099,96 +967,19 @@ void MachineInfoPanel::update_ams_ext(MachineObject *obj)
                         }
                     }
 
-                    bool is_bmcu = false;
-
+                    // update ams sn
                     if (it->second.sn.empty()) {
                         ams_sn = "-";
                     }
                     else {
                         wxString sn_text = it->second.sn;
                         ams_sn = sn_text.MakeUpper();
-                        is_bmcu = is_custom_sn(ams_sn);
-                        if (is_bmcu)
-                            has_custom_ams_sn = true;
                     }
-
-                    if (is_bmcu)
-                        ams_name = wxString::Format("BMCU-%s", std::to_string(ams_id + 1));
                 }
 
                 amspanel->m_staticText_ams->SetLabelText(ams_name);
                 amspanel->m_staticText_ams_sn_val->SetLabelText(ams_sn);
                 amspanel->m_staticText_ams_ver_val->SetLabelText(ams_ver);
-
-                if (is_custom_sn(ams_sn)) {
-                    amspanel->m_fw_url = "https://github.com/jarczakpawel/BMCU-C-PJARCZAK";
-                    amspanel->m_fw_link_lbl->Show();
-                    amspanel->m_fw_link->SetLabel("GitHub firmware");
-                    amspanel->m_fw_link->Show();
-
-                    bmcu_start_github_version_check();
-
-                    amspanel->m_fw_status_lbl->Show();
-                    amspanel->m_fw_status->Show();
-
-                    const wxColour green_clr = TEXT_NORMAL_CLR;
-                    const wxColour red_clr = wxColour(220, 0, 0);
-                    const wxColour gray_clr = wxColour(120, 120, 120);
-
-                    auto fnt = amspanel->m_fw_status->GetFont();
-                    fnt.SetWeight(wxFONTWEIGHT_NORMAL);
-                    amspanel->m_fw_status->SetFont(fnt);
-
-                    wxString installed = bmcu_norm_ver_strict_x4(it->second.sw_ver);
-                    wxString remote;
-                    wxString err;
-
-                    if (bmcu_get_remote_version(remote, err)) {
-                        if (!bmcu_is_ver_strict_x4(installed)) {
-                            amspanel->m_fw_status->SetForegroundColour(gray_clr);
-                            amspanel->m_fw_status->SetLabel("Installed firmware version has invalid format (expected x.x.x.x).");
-                        } else if (installed == remote) {
-                            amspanel->m_fw_status->SetForegroundColour(green_clr);
-                            amspanel->m_fw_status->SetLabel("Firmware is up to date (GitHub).");
-                        } else {
-                            fnt.SetWeight(wxFONTWEIGHT_BOLD);
-                            amspanel->m_fw_status->SetFont(fnt);
-                            amspanel->m_fw_status->SetForegroundColour(red_clr);
-                            amspanel->m_fw_status->SetLabel(
-                                wxString::Format("New firmware is available on GitHub. Installed: %s, Latest: %s.", installed, remote));
-                        }
-                    } else {
-                        const int st = g_bmcu_ver_state.load(std::memory_order_acquire);
-                        amspanel->m_fw_status->SetForegroundColour(gray_clr);
-                        fnt.SetWeight(wxFONTWEIGHT_NORMAL);
-                        amspanel->m_fw_status->SetFont(fnt);
-
-                        if (st == 3) {
-                            wxString e;
-                            {
-                                std::lock_guard<std::mutex> lk(g_bmcu_ver_mtx);
-                                e = g_bmcu_ver_err;
-                            }
-
-                            if (e.empty())
-                                amspanel->m_fw_status->SetLabel("Unable to check GitHub version.");
-                            else
-                                amspanel->m_fw_status->SetLabel(wxString::Format("Unable to check GitHub version (%s).", e));
-                        } else {
-                            amspanel->m_fw_status->SetLabel("Checking GitHub version...");
-                        }
-                    }
-                } else {
-                    if (amspanel->m_fw_link_lbl)
-                        amspanel->m_fw_link_lbl->Hide();
-                    if (amspanel->m_fw_link)
-                        amspanel->m_fw_link->Hide();
-                    if (amspanel->m_fw_status_lbl)
-                        amspanel->m_fw_status_lbl->Hide();
-                    if (amspanel->m_fw_status)
-                        amspanel->m_fw_status->Hide();
-                    amspanel->m_fw_url.clear();
-                }
 
                 ams_index++;
             }
@@ -1244,13 +1035,8 @@ void MachineInfoPanel::update_ams_ext(MachineObject *obj)
         ams_iter++;
     }
 
-    if (has_custom_ams_sn) {
-        if (m_img_monitor_ams.name() != "bmcu320") {
-            m_img_monitor_ams = ScalableBitmap(this, "bmcu320", 150);
-            m_ams_img->SetBitmap(m_img_monitor_ams.bmp());
-        }
-    } else if (contain_four_slot) {
-        if (m_img_monitor_ams.name() != "monitor_upgrade_ams_png") {
+    if (contain_four_slot) {
+        if (m_img_monitor_ams.name() != "monitor_upgrade_ams") {
             m_img_monitor_ams = ScalableBitmap(this, "monitor_upgrade_ams_png", 150);
             m_ams_img->SetBitmap(m_img_monitor_ams.bmp());
         }
@@ -1739,7 +1525,7 @@ bool UpgradePanel::Show(bool show)
                    const wxSize &  size /*= wxDefaultSize*/,
                    long            style /*= wxTAB_TRAVERSAL*/,
                    const wxString &name /*= wxEmptyString*/)
-    : wxPanel(parent,id,pos,size,style,name)
+    : wxPanel(parent,id,pos,size,style)
 {
      upgrade_green_icon = ScalableBitmap(this, "monitor_upgrade_online", 5);
 
@@ -1800,35 +1586,6 @@ bool UpgradePanel::Show(bool show)
      ams_sizer->Add(m_staticText_ams_sn_val, 0, wxALL | wxEXPAND, FromDIP(5));
      ams_sizer->Add(m_ams_ver_sizer, 1, wxEXPAND, FromDIP(5));
      ams_sizer->Add(content_info, 0,  wxEXPAND, FromDIP(5));
-
-     m_fw_link_lbl = new wxStaticText(this, wxID_ANY, _L("Firmware:"), wxDefaultPosition, wxDefaultSize, 0);
-     m_fw_link_lbl->SetFont(Label::Head_14);
-     m_fw_link_lbl->Hide();
-
-     m_fw_link = new wxStaticText(this, wxID_ANY, "GitHub", wxDefaultPosition, wxDefaultSize, 0);
-     m_fw_link->SetForegroundColour(wxColour(0x1F, 0x8E, 0xEA));
-     m_fw_link->SetCursor(wxCursor(wxCURSOR_HAND));
-     auto f = m_fw_link->GetFont();
-     f.SetUnderlined(true);
-     m_fw_link->SetFont(f);
-     m_fw_link->Hide();
-     m_fw_link->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent&) {
-         if (!m_fw_url.empty())
-             wxLaunchDefaultBrowser(m_fw_url);
-     });
-
-     ams_sizer->Add(m_fw_link_lbl, 0, wxALIGN_RIGHT | wxALL, FromDIP(5));
-     ams_sizer->Add(m_fw_link, 0, wxALL | wxEXPAND, FromDIP(5));
-
-     m_fw_status_lbl = new wxStaticText(this, wxID_ANY, _L("Status:"), wxDefaultPosition, wxDefaultSize, 0);
-     m_fw_status_lbl->SetFont(Label::Head_14);
-     m_fw_status_lbl->Hide();
-
-     m_fw_status = new wxStaticText(this, wxID_ANY, "-", wxDefaultPosition, wxDefaultSize, 0);
-     m_fw_status->Hide();
-
-     ams_sizer->Add(m_fw_status_lbl, 0, wxALIGN_RIGHT | wxALL, FromDIP(5));
-     ams_sizer->Add(m_fw_status, 0, wxALL | wxEXPAND, FromDIP(5));
      ams_sizer->Add(0, 0, 1, wxEXPAND, 0);
 
      SetSizer(ams_sizer);

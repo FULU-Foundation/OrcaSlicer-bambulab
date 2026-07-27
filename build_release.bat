@@ -33,9 +33,7 @@ echo "building deps.."
 
 echo cmake ../ -G "Visual Studio 16 2019" -A x64 -DCMAKE_BUILD_TYPE=%build_type%
 cmake ../ -G "Visual Studio 16 2019" -A x64 -DCMAKE_BUILD_TYPE=%build_type%
-if errorlevel 1 exit /b 1
 cmake --build . --config %build_type% --target deps -- -m
-if errorlevel 1 exit /b 1
 
 if "%1"=="deps" exit /b 0
 
@@ -47,12 +45,8 @@ cd %build_dir%
 
 echo cmake .. -G "Visual Studio 16 2019" -A x64 -DCMAKE_BUILD_TYPE=%build_type%
 cmake .. -G "Visual Studio 16 2019" -A x64 -DCMAKE_BUILD_TYPE=%build_type% %SIG_FLAG%
-if errorlevel 1 exit /b 1
 cmake --build . --config %build_type% --target ALL_BUILD -- -m
-if errorlevel 1 exit /b 1
 cd ..
 call scripts/run_gettext.bat
-if errorlevel 1 exit /b 1
 cd %build_dir%
 cmake --build . --target install --config %build_type%
-if errorlevel 1 exit /b 1

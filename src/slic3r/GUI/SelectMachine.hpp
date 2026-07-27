@@ -293,8 +293,6 @@ private:
     int                                 m_timeout_count{0};
     int                                 m_print_error_code{0};
     bool                                m_is_in_sending_mode{ false };
-    bool                                m_auto_retry_0500_409d_used{ false };
-    bool                                m_is_auto_retry_0500_409d_invoke{ false };
     bool                                m_ams_mapping_res{ false };
     bool                                m_ams_mapping_valid{ false };
     bool                                m_export_3mf_cancel{ false };
@@ -502,12 +500,12 @@ public:
     bool Show(bool show);
     void show_init();
     bool do_ams_mapping(MachineObject *obj_,bool use_ams);
-    bool get_ams_mapping_result(std::string& mapping_array_str, std::string& mapping_array_str2, std::string& ams_mapping_info);
+    bool get_ams_mapping_result(std::string& mapping_array_str, std::string& mapping_array_str2, std::string& ams_mapping_info) const;
     bool build_nozzles_info(std::string& nozzles_info);
     bool can_hybrid_mapping(DevExtderSystem data);
     void auto_supply_with_ext(std::vector<DevAmsTray> slots);
     bool is_nozzle_type_match(DevExtderSystem data, wxString& error_message) const;
-    int  convert_filament_map_nozzle_id_to_task_nozzle_id(int nozzle_id);
+    int  convert_filament_map_nozzle_id_to_task_nozzle_id(int nozzle_id) const;
 
     PrintFromType get_print_type() {return m_print_type;};
     wxString    format_steel_name(NozzleType type);

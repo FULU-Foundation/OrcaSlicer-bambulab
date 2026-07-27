@@ -795,9 +795,6 @@ void SendToPrinterDialog::init_timer()
 
 void SendToPrinterDialog::on_cancel(wxCloseEvent &event)
 {
-    if (auto* dev = Slic3r::GUI::wxGetApp().getDeviceManager()) {
-        dev->set_auto_retry_print_ui_callback(nullptr);
-    }
     m_worker->cancel_all();
 
     if (m_task_timer && m_task_timer->IsRunning()) {
@@ -835,35 +832,6 @@ void SendToPrinterDialog::on_ok(wxCommandEvent &event)
     assert(obj_->get_dev_id() == m_printer_last_select);
 
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ", print_job: for send task, current printer id =  " << m_printer_last_select << std::endl;
-    if (!m_is_auto_retry_0500_409d_invoke) {
-        m_auto_retry_0500_409d_used = false;
-    }
-    m_is_auto_retry_0500_409d_invoke = false;
-    if (dev) {
-        dev->set_auto_retry_print_ui_callback([token = std::weak_ptr<int>(m_token), this](const std::string& dev_id) {
-            if (token.expired()) {
-                return false;
-            }
-            if (!dev_id.empty() && dev_id != m_printer_last_select) {
-                return false;
-            }
-            if (m_auto_retry_0500_409d_used) {
-                return false;
-            }
-            m_auto_retry_0500_409d_used = true;
-            m_is_auto_retry_0500_409d_invoke = true;
-            CallAfter([token, this]() {
-                if (token.expired()) {
-                    return;
-                }
-                m_is_canceled = false;
-                prepare_mode();
-                wxCommandEvent evt(wxEVT_BUTTON);
-                on_ok(evt);
-            });
-            return true;
-        });
-    }
     show_status(PrintDialogStatus::PrintStatusSending);
 
     m_status_bar->reset();
@@ -1045,12 +1013,13 @@ void SendToPrinterDialog::clear_ip_address_config(wxCommandEvent& e)
 void SendToPrinterDialog::update_user_machine_list()
 {
     NetworkAgent* m_agent = wxGetApp().getAgent();
-    if (m_agent && m_agent->is_user_login()) {
-        boost::thread get_print_info_thread = Slic3r::create_thread([this, token = std::weak_ptr<int>(m_token)] {
+    const std::string provider = wxGetApp().get_printer_cloud_provider();
+    if (m_agent && m_agent->is_user_login(provider)) {
+        boost::thread get_print_info_thread = Slic3r::create_thread([this, token = std::weak_ptr<int>(m_token), provider] {
             NetworkAgent* agent = wxGetApp().getAgent();
             unsigned int http_code;
             std::string body;
-            int result = agent->get_user_print_info(&http_code, &body);
+            int result = agent->get_user_print_info(&http_code, &body, provider);
             CallAfter([token, this, result, body] {
                 if (token.expired()) {return;}
                 if (result == 0) {
@@ -1088,10 +1057,8 @@ void SendToPrinterDialog::on_refresh(wxCommandEvent &event)
 void SendToPrinterDialog::on_print_job_cancel(wxCommandEvent &evt)
 {
     BOOST_LOG_TRIVIAL(info) << "print_job: canceled";
-    if (auto* dev = Slic3r::GUI::wxGetApp().getDeviceManager()) {
-        dev->set_auto_retry_print_ui_callback(nullptr);
-    }
     show_status(PrintDialogStatus::PrintStatusSendingCanceled);
+    // enter prepare mode
     prepare_mode();
 }
 
@@ -1258,11 +1225,12 @@ void SendToPrinterDialog::update_show_status()
     DeviceManager* dev = Slic3r::GUI::wxGetApp().getDeviceManager();
     if (!agent) return;
     if (!dev) return;
+    const std::string provider = wxGetApp().get_printer_cloud_provider();
     MachineObject* obj_ = dev->get_my_machine(m_printer_last_select);
 
     if (!obj_) {
         if (agent) {
-            if (agent->is_user_login()) {
+            if (agent->is_user_login(provider)) {
                 show_status(PrintDialogStatus::PrintStatusInvalidPrinter);
             }
         }
@@ -1271,7 +1239,7 @@ void SendToPrinterDialog::update_show_status()
 
     /* check cloud machine connections */
     if (!obj_->is_lan_mode_printer()) {
-        if (!agent->is_server_connected()) {
+        if (!agent->is_server_connected(provider)) {
             show_status(PrintDialogStatus::PrintStatusConnectingServer);
             reset_timeout();
             return;
@@ -1598,7 +1566,7 @@ void SendToPrinterDialog::set_default()
 
     NetworkAgent* agent = wxGetApp().getAgent();
     if (agent) {
-        if (agent->is_user_login()) {
+        if (agent->is_user_login(wxGetApp().get_printer_cloud_provider())) {
             show_status(PrintDialogStatus::PrintStatusInit);
         }
     }
@@ -2021,9 +1989,6 @@ void SendToPrinterDialog::UploadFileRessultCallback(int res, int resp_ec, std::s
 }
 
 void SendToPrinterDialog::Reset() {
-    if (auto* dev = Slic3r::GUI::wxGetApp().getDeviceManager()) {
-        dev->set_auto_retry_print_ui_callback(nullptr);
-    }
     if (m_url_timer && m_url_timer->IsRunning()) { m_url_timer->Stop(); }
     m_ability_list.clear();
     update_storage_list(std::vector<std::string>());
@@ -2035,9 +2000,6 @@ void SendToPrinterDialog::Reset() {
 
 SendToPrinterDialog::~SendToPrinterDialog()
 {
-    if (auto* dev = Slic3r::GUI::wxGetApp().getDeviceManager()) {
-        dev->set_auto_retry_print_ui_callback(nullptr);
-    }
     delete m_refresh_timer;
     if (m_task_timer && m_task_timer->IsRunning())
         m_task_timer->Stop();

@@ -1,6 +1,6 @@
 //
 //  wxMediaCtrl2.m
-//  BambuStudio
+//  OrcaSlicer
 //
 //  Created by cmguo on 2021/12/7.
 //
@@ -140,10 +140,6 @@ void wxMediaCtrl2::Stop()
     NotifyStopped();
 }
 
-void wxMediaCtrl2::SetIdleImage(wxString const &image)
-{
-}
-
 void wxMediaCtrl2::NotifyStopped()
 {
     if (m_state != wxMEDIASTATE_STOPPED) {
@@ -171,11 +167,4 @@ wxSize wxMediaCtrl2::GetVideoSize() const
     } else {
         return {0, 0};
     }
-}
-
-void wxMediaCtrl2::DoSetSize(int x, int y, int width, int height, int sizeFlags)
-{
-    wxWindow::DoSetSize(x, y, width, height, sizeFlags);
-    if (sizeFlags & wxSIZE_USE_EXISTING) return;
-    wxMediaCtrl_OnSize(this, m_video_size, width, height);
 }

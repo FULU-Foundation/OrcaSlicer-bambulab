@@ -56,6 +56,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/BitmapComboBox.hpp
     GUI/BonjourDialog.cpp
     GUI/BonjourDialog.hpp
+    GUI/CrealityDiscoveryDialog.cpp
+    GUI/CrealityDiscoveryDialog.hpp
     GUI/calib_dlg.cpp
     GUI/calib_dlg.hpp
     GUI/Calibration.cpp
@@ -170,6 +172,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/Gizmos/GLGizmosManager.hpp
     GUI/Gizmos/GLGizmoSVG.cpp
     GUI/Gizmos/GLGizmoSVG.hpp
+    GUI/Gizmos/GLGizmoUtils.cpp
+    GUI/Gizmos/GLGizmoUtils.hpp
     #GUI/Gizmos/GLGizmoText.cpp
     #GUI/Gizmos/GLGizmoText.hpp
     GUI/GLCanvas3D.cpp
@@ -327,6 +331,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/Mouse3DController.hpp
     GUI/MsgDialog.cpp
     GUI/MsgDialog.hpp
+    GUI/MultiChoiceDialog.hpp
+    GUI/MultiChoiceDialog.cpp
     GUI/MultiMachine.cpp
     GUI/MultiMachine.hpp
     GUI/MultiMachineManagerPage.cpp
@@ -375,6 +381,10 @@ set(SLIC3R_GUI_SOURCES
     GUI/PlateSettingsDialog.hpp
     GUI/Preferences.cpp
     GUI/Preferences.hpp
+    GUI/PresetBundleDialog.cpp
+    GUI/PresetBundleDialog.hpp
+    GUI/ExportPresetBundleDialog.cpp
+    GUI/ExportPresetBundleDialog.hpp
     GUI/PresetComboBoxes.cpp
     GUI/PresetComboBoxes.hpp
     GUI/PresetHints.cpp
@@ -384,6 +394,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/Printer/PrinterFileSystem.cpp
     GUI/Printer/PrinterFileSystem.h
     GUI/PrinterWebView.cpp
+    GUI/PrinterWebViewHandler.cpp
+    GUI/PrinterWebViewHandler.hpp
     GUI/PrinterWebView.hpp
     GUI/PrintHostDialogs.cpp
     GUI/PrintHostDialogs.hpp
@@ -456,6 +468,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/TextLines.hpp
     GUI/TickCode.cpp
     GUI/TickCode.hpp
+    GUI/TroubleshootDialog.cpp
+    GUI/TroubleshootDialog.hpp
     GUI/UnsavedChangesDialog.cpp
     GUI/UnsavedChangesDialog.hpp
     GUI/UpdateDialogs.cpp
@@ -488,6 +502,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/Widgets/Button.hpp
     GUI/Widgets/CheckBox.cpp
     GUI/Widgets/CheckBox.hpp
+    GUI/Widgets/CheckList.cpp
+    GUI/Widgets/CheckList.hpp
     GUI/Widgets/ComboBox.cpp
     GUI/Widgets/ComboBox.hpp
     GUI/Widgets/DialogButtons.cpp
@@ -560,7 +576,6 @@ set(SLIC3R_GUI_SOURCES
     Utils/AstroBox.cpp
     Utils/AstroBox.hpp
     Utils/bambu_networking.hpp
-    Utils/PJarczakLinuxBridge/PJarczakLinuxBridgeConfig.cpp
     Utils/Bonjour.cpp
     Utils/Bonjour.hpp
     Utils/CalibUtils.cpp
@@ -569,6 +584,10 @@ set(SLIC3R_GUI_SOURCES
     Utils/ColorSpaceConvert.hpp
     Utils/CrealityPrint.cpp
     Utils/CrealityPrint.hpp
+    Utils/CrealityPrintAgent.cpp
+    Utils/CrealityPrintAgent.hpp
+    Utils/CrealityHostDiscovery.cpp
+    Utils/CrealityHostDiscovery.hpp
     Utils/Duet.cpp
     Utils/Duet.hpp
     Utils/ElegooLink.cpp
@@ -579,8 +598,8 @@ set(SLIC3R_GUI_SOURCES
     Utils/ESP3D.hpp
     Utils/FileHelp.cpp
     Utils/FileHelp.hpp
-    Utils/FixModelByWin10.cpp
-    Utils/FixModelByWin10.hpp
+    Utils/FixModelByCgal.cpp
+    Utils/FixModelByCgal.hpp
     Utils/FlashAir.cpp
     Utils/FlashAir.hpp
     Utils/Flashforge.cpp
@@ -615,12 +634,16 @@ set(SLIC3R_GUI_SOURCES
     Utils/SnapmakerPrinterAgent.hpp
     Utils/MoonrakerPrinterAgent.cpp
     Utils/MoonrakerPrinterAgent.hpp
+    Utils/Moonraker.cpp
+    Utils/Moonraker.hpp
     Utils/BBLCloudServiceAgent.cpp
     Utils/BBLCloudServiceAgent.hpp
     Utils/BBLPrinterAgent.cpp
     Utils/BBLPrinterAgent.hpp
     Utils/BBLNetworkPlugin.cpp
     Utils/BBLNetworkPlugin.hpp
+    Utils/PluginVerifyRedirect.cpp
+    Utils/PluginVerifyRedirect.hpp
     Utils/Obico.cpp
     Utils/Obico.hpp
     Utils/OctoPrint.cpp
@@ -648,6 +671,8 @@ set(SLIC3R_GUI_SOURCES
     Utils/UndoRedo.cpp
     Utils/UndoRedo.hpp
     Utils/WebSocketClient.hpp
+    Utils/3DPrinterOS.hpp
+    Utils/3DPrinterOS.cpp
     Utils/WxFontUtils.cpp
     Utils/WxFontUtils.hpp
     Utils/FileTransferUtils.cpp
@@ -656,7 +681,6 @@ set(SLIC3R_GUI_SOURCES
 
 add_subdirectory(GUI/DeviceCore)
 add_subdirectory(GUI/DeviceTab)
-add_subdirectory(Utils/PJarczakLinuxBridge)
 
 if (WIN32)
     list(APPEND SLIC3R_GUI_SOURCES
@@ -677,20 +701,17 @@ if (APPLE)
             GUI/Mouse3DHandlerMac.mm
             GUI/InstanceCheckMac.mm
             GUI/InstanceCheckMac.h
+            GUI/DeepLinkHandlerMac.mm
+            GUI/DeepLinkHandlerMac.h
             GUI/GUI_UtilsMac.mm
             GUI/wxMediaCtrl2.mm
             GUI/wxMediaCtrl2.h
-            GUI/wxMediaCtrl3.h
         )
     FIND_LIBRARY(DISKARBITRATION_LIBRARY DiskArbitration)
 else ()
     list(APPEND SLIC3R_GUI_SOURCES
-            GUI/AVVideoDecoder.cpp
-            GUI/AVVideoDecoder.hpp
             GUI/wxMediaCtrl2.cpp
             GUI/wxMediaCtrl2.h
-            GUI/wxMediaCtrl3.cpp
-            GUI/wxMediaCtrl3.h
         )
 endif ()
 
@@ -745,17 +766,25 @@ else()
     set(_opengl_link_lib OpenGL::GL)
 endif()
 
-target_link_libraries(libslic3r_gui libslic3r cereal::cereal imgui imguizmo minilzo libvgcode md4c-html glad ${_opengl_link_lib} hidapi ${wxWidgets_LIBRARIES} glfw libcurl OpenSSL::SSL OpenSSL::Crypto noise::noise)
+target_link_libraries(libslic3r_gui libslic3r cereal::cereal imgui imguizmo minilzo libvgcode md4c-html glad ${_opengl_link_lib} hidapi mdns ${wxWidgets_LIBRARIES} glfw libcurl OpenSSL::SSL OpenSSL::Crypto noise::noise)
 
 
 if (MSVC)
-    find_library(FFMPEG_AVCODEC_LIB NAMES avcodec avcodec-61 PATHS ${CMAKE_PREFIX_PATH} PATH_SUFFIXES lib NO_DEFAULT_PATH)
-    find_library(FFMPEG_AVUTIL_LIB  NAMES avutil avutil-59 PATHS ${CMAKE_PREFIX_PATH} PATH_SUFFIXES lib NO_DEFAULT_PATH)
-    find_library(FFMPEG_SWSCALE_LIB NAMES swscale swscale-8 PATHS ${CMAKE_PREFIX_PATH} PATH_SUFFIXES lib NO_DEFAULT_PATH)
-    if (NOT FFMPEG_AVCODEC_LIB OR NOT FFMPEG_AVUTIL_LIB OR NOT FFMPEG_SWSCALE_LIB)
-        message(FATAL_ERROR "Missing FFmpeg import libs for Windows build. Expected avcodec/avutil/swscale under ${CMAKE_PREFIX_PATH}/lib")
+    target_link_libraries(libslic3r_gui Setupapi.lib)
+    # MinHook (git submodule at deps/minhook) for PluginVerifyRedirect.cpp — the
+    # Bambu network plugin's "signed studio" Authenticode gate redirect. Compiled
+    # straight into libslic3r_gui (Windows x64 only). Run
+    # `git submodule update --init deps/minhook` before configuring.
+    set(_MINHOOK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../deps/minhook)
+    if (NOT EXISTS ${_MINHOOK_DIR}/src/hook.c)
+        message(FATAL_ERROR "MinHook submodule missing — run: git submodule update --init deps/minhook")
     endif ()
-    target_link_libraries(libslic3r_gui Setupapi.lib dwmapi.lib ${FFMPEG_AVCODEC_LIB} ${FFMPEG_AVUTIL_LIB} ${FFMPEG_SWSCALE_LIB})
+    target_sources(libslic3r_gui PRIVATE
+        ${_MINHOOK_DIR}/src/buffer.c
+        ${_MINHOOK_DIR}/src/hook.c
+        ${_MINHOOK_DIR}/src/trampoline.c
+        ${_MINHOOK_DIR}/src/hde/hde64.c)
+    target_include_directories(libslic3r_gui PRIVATE ${_MINHOOK_DIR}/include)
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     FIND_LIBRARY(WAYLAND_SERVER_LIBRARIES NAMES wayland-server)
     FIND_LIBRARY(WAYLAND_EGL_LIBRARIES    NAMES wayland-egl)
@@ -802,15 +831,7 @@ if (UNIX AND NOT APPLE)
     find_package(PkgConfig REQUIRED)
     find_package(GTK${SLIC3R_GTK} REQUIRED)
     pkg_check_modules(LIBSECRET REQUIRED libsecret-1)
-    pkg_check_modules(WEBKIT2GTK41 QUIET webkit2gtk-4.1)
-    if (WEBKIT2GTK41_FOUND)
-        set(webkit2gtk_INCLUDE_DIRS ${WEBKIT2GTK41_INCLUDE_DIRS})
-        set(webkit2gtk_LIBRARIES ${WEBKIT2GTK41_LIBRARIES})
-    else()
-        pkg_check_modules(WEBKIT2GTK40 REQUIRED webkit2gtk-4.0)
-        set(webkit2gtk_INCLUDE_DIRS ${WEBKIT2GTK40_INCLUDE_DIRS})
-        set(webkit2gtk_LIBRARIES ${WEBKIT2GTK40_LIBRARIES})
-    endif()
+    pkg_check_modules(webkit2gtk REQUIRED webkit2gtk-4.1)
     if (FLATPAK)
         # I don't know why this is needed, but for whatever reason slic3r isn't
         # linking to X11 and webkit2gtk. force it.
@@ -828,13 +849,6 @@ if (UNIX AND NOT APPLE)
     if (wxHAVE_GDK_WAYLAND)
         target_compile_definitions(libslic3r_gui PRIVATE wxHAVE_GDK_WAYLAND)
     endif ()
-
-    pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
-        libavcodec
-        libswscale
-        libavutil
-    )
-    target_link_libraries(libslic3r_gui PkgConfig::LIBAV)
 
     # We add GStreamer for bambu:/// support.
     pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0)

@@ -218,6 +218,7 @@ public:
     bool is_series_p() const;
     bool is_series_x() const;
     bool is_series_o() const;
+    bool can_use_emmc_print() const;
 
     void reload_printer_settings();
     std::string get_printer_thumbnail_img_str() const;
@@ -291,7 +292,6 @@ public:
 
     bool is_target_slot_unload() const;
     bool can_unload_filament();
-    bool is_support_amx_ext_mix_mapping() const { return true;}
 
     void get_ams_colors(std::vector<wxColour>& ams_colors);
 
@@ -402,9 +402,6 @@ public:
     bool    is_system_printing();
 
     int     print_error;
-    int     last_auto_ignored_print_error_ = 0;
-    std::chrono::steady_clock::time_point last_auto_ignored_print_error_command_at_{};
-    std::chrono::steady_clock::time_point last_auto_ignored_print_error_retry_at_{};
     static std::string get_error_code_str(int error_code);
     std::string get_print_error_str() const { return MachineObject::get_error_code_str(this->print_error); }
 
@@ -608,6 +605,8 @@ public:
     bool is_support_upgrade_kit{false};
     bool is_support_filament_setting_inprinting{false};
     bool is_support_internal_timelapse { false };// fun[28], support timelapse without SD card
+    bool is_support_model_internal_storage { false };// fun2[17], printer internal model storage (e.g. H2S)
+    bool is_support_remote_dry { false };// fun2[5], remote AMS active drying (e.g. H2S AMS)
     bool m_support_mqtt_homing { false };// fun[32]
     bool is_support_brtc{false};                 // fun[31], support tcp and upload protocol
     bool is_support_ext_change_assist{false};
@@ -747,6 +746,8 @@ public:
     int command_ams_refresh_rfid2(int ams_id, int slot_id);
     int command_ams_control(std::string action);
     int command_ams_drying_stop();
+    int command_ams_drying_stop(int ams_id); // ams_filament_drying mode=Off (counterpart to command_ams_drying_start)
+    int command_ams_drying_start(int ams_id, std::string filament_type, int temp, int duration_hour, bool rotate_tray = false, int cooling_temp = 0);
     int command_start_extrusion_cali(int tray_index, int nozzle_temp, int bed_temp, float max_volumetric_speed, std::string setting_id = "");
     int command_stop_extrusion_cali();
     int command_extrusion_cali_set(int tray_index, std::string setting_id, std::string name, float k, float n, int bed_temp = -1, int nozzle_temp = -1, float max_volumetric_speed = -1);
