@@ -109,7 +109,7 @@ resolve_lima_version() {
     resolve_lima_version_from_redirect
 }
 
-install_lima_binary_locally() {
+install_lima_binary_locally() (
     local version
     version=$(resolve_lima_version)
     if [[ -z "$version" ]]; then
@@ -138,7 +138,7 @@ install_lima_binary_locally() {
     local guest_archive="lima-additional-guestagents-${version_no_v}-Darwin-${host_arch}.tar.gz"
     local tmpdir
     tmpdir=$(mktemp -d)
-    trap 'rm -rf "$tmpdir"' RETURN
+    trap 'rm -rf "$tmpdir"' EXIT
 
     curl -fL --retry 3 --retry-delay 2 "$base_url/$main_archive" -o "$tmpdir/$main_archive"
     tar -xzf "$tmpdir/$main_archive" -C "$LOCAL_LIMA_ROOT"
@@ -148,7 +148,7 @@ install_lima_binary_locally() {
     fi
 
     [[ -x "$LOCAL_LIMA_BIN/limactl" ]]
-}
+)
 
 ensure_lima_installed() {
     LIMACTL=$(find_limactl || true)
