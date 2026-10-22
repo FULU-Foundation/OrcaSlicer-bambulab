@@ -158,5 +158,25 @@ if ! "$LIMACTL" shell "$INSTANCE" -- /usr/bin/env true >/dev/null 2>&1; then
     exit 1
 fi
 
+GUEST_ARCH=$("$LIMACTL" shell "$INSTANCE" -- uname -m)
+case "$GUEST_ARCH" in
+    aarch64|arm64)
+        if ! "$LIMACTL" shell "$INSTANCE" -- sh -lc \
+            'command -v qemu-x86_64 >/dev/null 2>&1 &&
+             test -e /lib64/ld-linux-x86-64.so.2 &&
+             test -e /usr/lib/x86_64-linux-gnu/libstdc++.so.6 &&
+             test -e /usr/lib/x86_64-linux-gnu/libz.so.1'; then
+            echo "ARM64 Lima guest is missing QEMU or the x86_64 runtime libraries" >&2
+            exit 1
+        fi
+        ;;
+    x86_64|amd64)
+        ;;
+    *)
+        echo "unsupported Lima guest architecture for x86_64 plugin: $GUEST_ARCH" >&2
+        exit 1
+        ;;
+esac
+
 printf 'runtime ok
 '
