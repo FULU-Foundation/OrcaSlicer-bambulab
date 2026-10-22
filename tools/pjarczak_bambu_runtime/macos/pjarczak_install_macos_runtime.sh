@@ -109,7 +109,7 @@ resolve_lima_version() {
     resolve_lima_version_from_redirect
 }
 
-install_lima_binary_locally() {
+install_lima_binary_locally() (
     local version
     version=$(resolve_lima_version)
     if [[ -z "$version" ]]; then
@@ -138,7 +138,7 @@ install_lima_binary_locally() {
     local guest_archive="lima-additional-guestagents-${version_no_v}-Darwin-${host_arch}.tar.gz"
     local tmpdir
     tmpdir=$(mktemp -d)
-    trap 'rm -rf "$tmpdir"' RETURN
+    trap 'rm -rf "$tmpdir"' EXIT
 
     curl -fL --retry 3 --retry-delay 2 "$base_url/$main_archive" -o "$tmpdir/$main_archive"
     tar -xzf "$tmpdir/$main_archive" -C "$LOCAL_LIMA_ROOT"
@@ -148,7 +148,7 @@ install_lima_binary_locally() {
     fi
 
     [[ -x "$LOCAL_LIMA_BIN/limactl" ]]
-}
+)
 
 ensure_lima_installed() {
     LIMACTL=$(find_limactl || true)
@@ -177,6 +177,34 @@ maybe_install_rosetta() {
         return 0
     fi
     /usr/sbin/softwareupdate --install-rosetta --agree-to-license >/dev/null 2>&1 || true
+}
+
+ensure_guest_x86_64_runtime() {
+    local guest_arch
+    guest_arch=$("$LIMACTL" shell "$INSTANCE" -- uname -m)
+    case "$guest_arch" in
+        aarch64|arm64)
+            if "$LIMACTL" shell "$INSTANCE" -- sh -lc \
+                'command -v qemu-x86_64 >/dev/null 2>&1 &&
+                 test -e /lib64/ld-linux-x86-64.so.2 &&
+                 test -e /usr/lib/x86_64-linux-gnu/libstdc++.so.6 &&
+                 test -e /usr/lib/x86_64-linux-gnu/libz.so.1'; then
+                return 0
+            fi
+            "$LIMACTL" shell "$INSTANCE" -- sudo dpkg --add-architecture amd64
+            "$LIMACTL" shell "$INSTANCE" -- sudo apt-get update
+            "$LIMACTL" shell "$INSTANCE" -- sudo env DEBIAN_FRONTEND=noninteractive \
+                apt-get install -y --no-install-recommends \
+                libc6:amd64 libstdc++6:amd64 zlib1g:amd64 qemu-user
+            ;;
+        x86_64|amd64)
+            return 0
+            ;;
+        *)
+            echo "unsupported Lima guest architecture for x86_64 plugin: $guest_arch" >&2
+            return 1
+            ;;
+    esac
 }
 
 copy_runtime_payload() {
@@ -241,5 +269,6 @@ fi
 
 "$LIMACTL" start-at-login "$INSTANCE" --enabled >/dev/null 2>&1 || true
 "$LIMACTL" shell "$INSTANCE" -- /usr/bin/env true >/dev/null
+ensure_guest_x86_64_runtime
 printf 'runtime installed
 '

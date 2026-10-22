@@ -20,6 +20,15 @@ choose_bin() {
         return 0
     fi
 
+    if [ "$(uname -m)" = "aarch64" ]; then
+        if [ -x "$DIR/pjarczak_bambu_linux_host_abi1" ]; then
+            printf 'abi1' > "$CACHE_FILE"
+            printf '%s\n' "$DIR/pjarczak_bambu_linux_host_abi1"
+            return 0
+        fi
+        return 1
+    fi
+
     if [ -f "$CACHE_FILE" ]; then
         cached=$(cat "$CACHE_FILE" 2>/dev/null || true)
         if [ -n "$cached" ] && [ -x "$DIR/pjarczak_bambu_linux_host_$cached" ]; then
@@ -55,6 +64,15 @@ BIN=$(choose_bin) || {
 if [ "${1:-}" = "--print-bin" ]; then
     printf '%s\n' "$BIN"
     exit 0
+fi
+
+if [ "$(uname -m)" = "aarch64" ]; then
+    QEMU_X86_64=$(command -v qemu-x86_64 || true)
+    if [ -z "$QEMU_X86_64" ]; then
+        echo "qemu-x86_64 is required to run the x86_64 plugin on ARM64 Linux" >&2
+        exit 127
+    fi
+    exec "$QEMU_X86_64" -L / -E "LD_LIBRARY_PATH=$DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$BIN" "$@"
 fi
 
 export LD_LIBRARY_PATH="$DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
