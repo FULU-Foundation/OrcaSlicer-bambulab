@@ -9237,11 +9237,19 @@ void DynamicPrintConfig::update_values_to_printer_extruders_for_multiple_filamen
                 case coStrings:
                 {
                     ConfigOptionStrings * opt = this->option<ConfigOptionStrings>(key);
+                    if (!opt) {
+                        BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", Line %1%: option %2% not found, skipping")%__LINE__%key;
+                        break;
+                    }
                     std::vector<std::string> new_values;
 
                     new_values.resize(filament_count);
                     for (int f_index = 0; f_index < filament_count; f_index++)
                     {
+                        if (variant_index[f_index] < 0 || static_cast<size_t>(variant_index[f_index]) >= opt->size()) {
+                            BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", Line %1%: option %2% variant index %3% out of range, skipping")%__LINE__%key%variant_index[f_index];
+                            continue;
+                        }
                         new_values[f_index] = opt->get_at(variant_index[f_index]);
                     }
                     opt->values = new_values;
@@ -9250,11 +9258,19 @@ void DynamicPrintConfig::update_values_to_printer_extruders_for_multiple_filamen
                 case coInts:
                 {
                     ConfigOptionInts * opt = this->option<ConfigOptionInts>(key);
+                    if (!opt) {
+                        BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", Line %1%: option %2% not found, skipping")%__LINE__%key;
+                        break;
+                    }
                     std::vector<int> new_values;
 
                     new_values.resize(filament_count);
                     for (int f_index = 0; f_index < filament_count; f_index++)
                     {
+                        if (variant_index[f_index] < 0 || static_cast<size_t>(variant_index[f_index]) >= opt->size()) {
+                            BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", Line %1%: option %2% variant index %3% out of range, skipping")%__LINE__%key%variant_index[f_index];
+                            continue;
+                        }
                         new_values[f_index] = opt->get_at(variant_index[f_index]);
                     }
                     opt->values = new_values;
@@ -9263,11 +9279,19 @@ void DynamicPrintConfig::update_values_to_printer_extruders_for_multiple_filamen
                 case coFloats:
                 {
                     ConfigOptionFloats * opt = this->option<ConfigOptionFloats>(key);
+                    if (!opt) {
+                        BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", Line %1%: option %2% not found, skipping")%__LINE__%key;
+                        break;
+                    }
                     std::vector<double> new_values;
 
                     new_values.resize(filament_count);
                     for (int f_index = 0; f_index < filament_count; f_index++)
                     {
+                        if (variant_index[f_index] < 0 || static_cast<size_t>(variant_index[f_index]) >= opt->size()) {
+                            BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", Line %1%: option %2% variant index %3% out of range, skipping")%__LINE__%key%variant_index[f_index];
+                            continue;
+                        }
                         new_values[f_index] = opt->get_at(variant_index[f_index]);
                     }
                     opt->values = new_values;
@@ -9276,11 +9300,19 @@ void DynamicPrintConfig::update_values_to_printer_extruders_for_multiple_filamen
                 case coPercents:
                 {
                     ConfigOptionPercents * opt = this->option<ConfigOptionPercents>(key);
+                    if (!opt) {
+                        BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", Line %1%: option %2% not found, skipping")%__LINE__%key;
+                        break;
+                    }
                     std::vector<double> new_values;
 
                     new_values.resize(filament_count);
                     for (int f_index = 0; f_index < filament_count; f_index++)
                     {
+                        if (variant_index[f_index] < 0 || static_cast<size_t>(variant_index[f_index]) >= opt->size()) {
+                            BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", Line %1%: option %2% variant index %3% out of range, skipping")%__LINE__%key%variant_index[f_index];
+                            continue;
+                        }
                         new_values[f_index] = opt->get_at(variant_index[f_index]);
                     }
                     opt->values = new_values;
@@ -9289,11 +9321,19 @@ void DynamicPrintConfig::update_values_to_printer_extruders_for_multiple_filamen
                 case coFloatsOrPercents:
                 {
                     ConfigOptionFloatsOrPercents * opt = this->option<ConfigOptionFloatsOrPercents>(key);
+                    if (!opt) {
+                        BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", Line %1%: option %2% not found, skipping")%__LINE__%key;
+                        break;
+                    }
                     std::vector<FloatOrPercent> new_values;
 
                     new_values.resize(filament_count);
                     for (int f_index = 0; f_index < filament_count; f_index++)
                     {
+                        if (variant_index[f_index] < 0 || static_cast<size_t>(variant_index[f_index]) >= opt->size()) {
+                            BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", Line %1%: option %2% variant index %3% out of range, skipping")%__LINE__%key%variant_index[f_index];
+                            continue;
+                        }
                         new_values[f_index] = opt->get_at(variant_index[f_index]);
                     }
                     opt->values = new_values;
@@ -9302,11 +9342,19 @@ void DynamicPrintConfig::update_values_to_printer_extruders_for_multiple_filamen
                 case coBools:
                 {
                     ConfigOptionBools * opt = this->option<ConfigOptionBools>(key);
+                    if (!opt) {
+                        BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", Line %1%: option %2% not found, skipping")%__LINE__%key;
+                        break;
+                    }
                     std::vector<unsigned char> new_values;
 
                     new_values.resize(filament_count);
                     for (int f_index = 0; f_index < filament_count; f_index++)
                     {
+                        if (variant_index[f_index] < 0 || static_cast<size_t>(variant_index[f_index]) >= opt->size()) {
+                            BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", Line %1%: option %2% variant index %3% out of range, skipping")%__LINE__%key%variant_index[f_index];
+                            continue;
+                        }
                         new_values[f_index] = opt->get_at(variant_index[f_index]);
                     }
                     opt->values = new_values;
@@ -9315,11 +9363,19 @@ void DynamicPrintConfig::update_values_to_printer_extruders_for_multiple_filamen
                 case coEnums:
                 {
                     ConfigOptionEnumsGeneric * opt = this->option<ConfigOptionEnumsGeneric>(key);
+                    if (!opt) {
+                        BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", Line %1%: option %2% not found, skipping")%__LINE__%key;
+                        break;
+                    }
                     std::vector<int> new_values;
 
                     new_values.resize(filament_count);
                     for (int f_index = 0; f_index < filament_count; f_index++)
                     {
+                        if (variant_index[f_index] < 0 || static_cast<size_t>(variant_index[f_index]) >= opt->size()) {
+                            BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", Line %1%: option %2% variant index %3% out of range, skipping")%__LINE__%key%variant_index[f_index];
+                            continue;
+                        }
                         new_values[f_index] = opt->get_at(variant_index[f_index]);
                     }
                     opt->values = new_values;
