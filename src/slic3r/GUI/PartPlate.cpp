@@ -2384,7 +2384,8 @@ void PartPlate::invalidate_plate_name_texture()
 {
 	m_plate_name_edit_icon.mesh_raycaster.reset();
 
-	if (wxGetApp().is_closing())
+	// m_plater is null in CLI mode, where there is no GUI_App and wxGetApp() must not be called.
+	if (m_plater == nullptr || wxGetApp().is_closing())
 		return;
 
 	auto canvas = (m_plater != nullptr) ? m_plater->get_view3D_canvas3D() : nullptr;
