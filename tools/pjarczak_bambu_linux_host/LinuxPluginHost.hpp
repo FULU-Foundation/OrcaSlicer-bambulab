@@ -8,6 +8,7 @@
 #include <deque>
 #include <map>
 #include <memory>
+#include <set>
 #include <vector>
 #include <mutex>
 #include <string>
@@ -106,6 +107,13 @@ private:
     std::map<std::int64_t, void*> m_ft_jobs;
     std::map<std::int64_t, std::shared_ptr<HostFtJobState>> m_ft_job_states;
     std::map<std::int64_t, std::string> m_country_codes;
+    // Issue #53: agents for which net.set_cert_file has completed.
+    // The plug-in segfaults on connect_printer / disconnect_printer /
+    // destroy_agent for any agent not in this set, so those handlers
+    // refuse early instead of forwarding. Guarded by m_state_mutex,
+    // like m_agents and m_country_codes. Also consumed by the EOF
+    // shutdown path (patch proposal 0001, part c).
+    std::set<std::int64_t> m_cert_ready_agents;
     std::mutex m_state_mutex;
     std::mutex m_events_mutex;
     std::deque<nlohmann::json> m_events;
