@@ -1,6 +1,7 @@
 #include "LinuxPluginHost.hpp"
 #include "../../src/slic3r/Utils/PJarczakLinuxBridge/PJarczakLinuxSoBridgeRpcProtocol.hpp"
 
+#include <cerrno>
 #include <cstdlib>
 #include <iostream>
 #include <mutex>
@@ -9,11 +10,55 @@
 #include <fstream>
 #include <unistd.h>
 #include <cstdio>
+#include <streambuf>
 #include <thread>
 
 using namespace Slic3r::PJarczakLinuxBridge;
 
 namespace {
+// Unbuffered streambuf that writes straight to a file descriptor with
+// ::write(). The RPC output descriptor must be written this way: the
+// previous implementation reopened it through /proc/self/fd/N, and
+// open() on that path fails with ENXIO when the descriptor is a socket
+// (issue #50) — Node.js child_process.spawn() gives a child socketpairs,
+// not pipes, for stdio:"pipe".
+class FdStreamBuf : public std::streambuf {
+public:
+    explicit FdStreamBuf(int fd) : fd_(fd) {}
+
+protected:
+    int_type overflow(int_type ch) override
+    {
+        if (ch == traits_type::eof())
+            return traits_type::not_eof(ch);
+        char c = traits_type::to_char_type(ch);
+        return xsputn(&c, 1) == 1 ? ch : traits_type::eof();
+    }
+
+    std::streamsize xsputn(const char* s, std::streamsize n) override
+    {
+        std::streamsize done = 0;
+        while (done < n) {
+            const ssize_t w = ::write(fd_, s + done, static_cast<size_t>(n - done));
+            if (w < 0) {
+                if (errno == EINTR)
+                    continue;
+                break;
+            }
+            done += w;
+        }
+        return done;
+    }
+
+    // Unbuffered: every write above has already reached the descriptor,
+    // so there is nothing to flush. Returning 0 keeps ostream::flush()
+    // (called by write_raw_frame after every frame) a success.
+    int sync() override { return 0; }
+
+private:
+    int fd_;
+};
+
 int run_probe_auth()
 {
     LinuxPluginHost host;
@@ -63,7 +108,8 @@ int main(int argc, char** argv)
         return 100;
     std::fflush(stdout);
     ::dup2(STDERR_FILENO, STDOUT_FILENO);
-    std::ofstream rpc_out(std::string("/proc/self/fd/") + std::to_string(rpc_fd), std::ios::binary | std::ios::out);
+    FdStreamBuf rpc_buf(rpc_fd);
+    std::ostream rpc_out(&rpc_buf);
     if (!rpc_out.good())
         return 101;
 
