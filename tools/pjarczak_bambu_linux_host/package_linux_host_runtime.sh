@@ -137,8 +137,10 @@ chmod +x "$RUNTIME_ROOT/pjarczak_bambu_linux_host" "$RUNTIME_ROOT/pjarczak_bambu
 for extra in \
     "$PROJECT_DIR/cert/ca-certificates.crt" \
     "$PROJECT_DIR/cert/slicer_base64.cer" \
+    "$PROJECT_DIR/cert/printer.cer" \
     "$PROJECT_DIR/resources/cert/ca-certificates.crt" \
-    "$PROJECT_DIR/resources/cert/slicer_base64.cer"; do
+    "$PROJECT_DIR/resources/cert/slicer_base64.cer" \
+    "$PROJECT_DIR/resources/cert/printer.cer"; do
     if [[ -f "$extra" ]]; then
         cp -f "$extra" "$RUNTIME_ROOT/$(basename -- "$extra")"
     fi
