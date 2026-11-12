@@ -88,6 +88,13 @@ std::string env_or(const char* name, const char* fallback)
     return fallback;
 }
 
+std::string env_or(const char* name, const std::string& fallback)
+{
+    if (const char* v = std::getenv(name))
+        return v;
+    return fallback;
+}
+
 std::mutex g_host_log_mutex;
 
 std::string trim_for_log(const std::string& value, std::size_t limit = 8192)
@@ -511,7 +518,7 @@ void LinuxPluginHost::load_modules()
     }
 
     if (!m_network) {
-        const auto path = env_or("PJARCZAK_BAMBU_NETWORK_SO", "libbambu_networking.so");
+        const auto path = env_or("PJARCZAK_BAMBU_NETWORK_SO", (plugin_folder / linux_network_library_name()).string());
         std::string reason;
         if (!manifest_ok) {
             m_network_status = "manifest invalid: " + manifest_reason;
@@ -547,7 +554,7 @@ void LinuxPluginHost::load_modules()
     }
 
     if (!m_source) {
-        const auto path = env_or("PJARCZAK_BAMBU_SOURCE_SO", "libBambuSource.so");
+        const auto path = env_or("PJARCZAK_BAMBU_SOURCE_SO", (plugin_folder / linux_source_library_name()).string());
         std::string reason;
         if (!manifest_ok) {
             m_source_status = "manifest invalid: " + manifest_reason;
