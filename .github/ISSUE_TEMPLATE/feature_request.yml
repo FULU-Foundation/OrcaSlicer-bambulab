@@ -34,8 +34,27 @@ body:
       options: 
         - Klipper
         - Marlin
+        - Bambu Lab
         - Others
         - All
+    validations:
+      required: true
+  - type: dropdown
+    id: request_area
+    attributes:
+      label: Which part of this fork does the request affect?
+      description: "This fork's requests are triaged by area. Choose the closest one; choose 'General slicing' if no printer connection is involved."
+      multiple: false
+      options:
+        - General slicing — no printer connection involved
+        - BambuNetwork cloud connection (account login / Device tab)
+        - LAN mode connection
+        - Linux host / bridge
+        - macOS bridge (Lima)
+        - Windows / WSL bridge
+        - Device tab / camera
+        - Building from source / installing
+        - Other
     validations:
       required: true
   - type: textarea

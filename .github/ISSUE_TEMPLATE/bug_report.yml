@@ -8,7 +8,7 @@ body:
         **Thank you for using Orca Slicer and wanting to report a bug.**
         
         Please note that this is not the place to make feature requests or ask for help.
-        For this, please use the [Feature request](https://github.com/OrcaSlicer/OrcaSlicer/issues/new?assignees=&labels=&projects=&template=feature_request.yml) issue type or you can discuss your idea on our [Discord server](https://discord.gg/P4VE9UY9gJ) with others.
+        For this, please use the [Feature request](https://github.com/FULU-Foundation/OrcaSlicer-bambulab/issues/new?assignees=&labels=&projects=&template=feature_request.yml) issue type or you can discuss your idea on our [Discord server](https://discord.gg/P4VE9UY9gJ) with others.
         
         Before filing, please check if the issue already exists (either open or closed) by using the search bar on the issues page. If it does, comment there. Even if it's closed, we can reopen it based on your comment.
   - type: checkboxes
@@ -65,6 +65,51 @@ body:
       placeholder: Voron 2.4/VzBot/Prusa MK4/Bambu Lab X1 series/Bambu Lab P1P/...
     validations:
       required: true
+  - type: dropdown
+    id: problem_area
+    attributes:
+      label: Where does the problem occur?
+      description: "This fork's reports are triaged by area. Choose the closest one; choose 'Slicing only' if no printer connection is involved."
+      multiple: false
+      options:
+        - Slicing only — no printer connection involved
+        - BambuNetwork cloud connection (account login / Device tab)
+        - LAN mode connection
+        - Linux host / bridge
+        - macOS bridge (Lima)
+        - Windows / WSL bridge
+        - Device tab / camera
+        - Building from source / installing
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: firmware_version
+    attributes:
+      label: Printer firmware version
+      description: "The printer's firmware version, if a printer is involved. Leave blank for slicing-only reports."
+      placeholder: "e.g. 01.12.00.00, or 'not involved'"
+    validations:
+      required: false
+  - type: input
+    id: network_plugin_version
+    attributes:
+      label: BambuNetwork plug-in / bridge version
+      description: "If the problem involves a printer connection: the BambuNetwork plug-in version and, on Linux/macOS/Windows-WSL, the bridge or host runtime you are running (release name or commit, if shown). Leave blank for slicing-only reports."
+      placeholder: "e.g. plug-in 02.05.02.58, Linux host runtime from release v1.0.0"
+    validations:
+      required: false
+  - type: textarea
+    id: bridge_details
+    attributes:
+      label: Connection / bridge details (printer-connection problems only)
+      description: "Connection mode (cloud or LAN), how the host or bridge was started (from the slicer, a script, Node.js, ...), any exit code, and the exact error or stderr text shown. Leave blank for slicing-only reports."
+      placeholder: |
+        Connection mode: LAN
+        Started from: the slicer / a Node.js client / ...
+        Exit code / error: e.g. host exit status 101, or the exact dialog text
+    validations:
+      required: false
   - type: textarea
     id: reproduce_steps
     attributes:
