@@ -3394,7 +3394,7 @@ bool pjarczak_bridge_payload_ready(const boost::filesystem::path& plugin_folder,
         std::string("ca-certificates.crt"),
         std::string("slicer_base64.cer")
     };
-#else
+#elif defined(_MSC_VER) || defined(_WIN32)
     const std::string required_files[] = {
         Slic3r::PJarczakLinuxBridge::bridge_network_current_dir_name(),
         Slic3r::PJarczakLinuxBridge::host_executable_file_name(),
@@ -3409,6 +3409,19 @@ bool pjarczak_bridge_payload_ready(const boost::filesystem::path& plugin_folder,
         std::string("ca-certificates.crt"),
         std::string("slicer_base64.cer")
     };
+#else
+    // Linux runs the x86-64 payload in the local FEX/muvm host, so only the
+    // bridge module, the host binaries and the payload files are required.
+    const std::string required_files[] = {
+        Slic3r::PJarczakLinuxBridge::bridge_network_current_dir_name(),
+        Slic3r::PJarczakLinuxBridge::host_executable_file_name(),
+        std::string("pjarczak_bambu_linux_host_abi1"),
+        std::string("pjarczak_bambu_linux_host_abi0"),
+        Slic3r::PJarczakLinuxBridge::linux_network_library_name(),
+        Slic3r::PJarczakLinuxBridge::linux_source_library_name(),
+        std::string("ca-certificates.crt"),
+        std::string("slicer_base64.cer")
+    };
 #endif
 
     for (const std::string& file_name : required_files) {
@@ -3417,7 +3430,7 @@ bool pjarczak_bridge_payload_ready(const boost::filesystem::path& plugin_folder,
             return false;
         }
     }
-#if !(defined(__WXMAC__) || defined(__APPLE__))
+#if defined(_MSC_VER) || defined(_WIN32)
     if (!has_file(Slic3r::PJarczakLinuxBridge::windows_wsl_import_script_file_name()) &&
         !has_file("pjarczak-install-wsl-runtime.ps1")) {
         pjarczak_set_reason(reason, "missing required runtime file: " + Slic3r::PJarczakLinuxBridge::windows_wsl_import_script_file_name());

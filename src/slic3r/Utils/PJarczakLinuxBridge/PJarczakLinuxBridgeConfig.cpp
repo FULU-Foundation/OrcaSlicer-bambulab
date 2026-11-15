@@ -44,7 +44,10 @@ bool expected_machine_matches(std::uint16_t machine)
 #elif defined(__x86_64__) || defined(_M_X64)
     return machine == EM_X86_64;
 #elif defined(__aarch64__)
-    return machine == EM_AARCH64;
+    // The Linux bridge runs the proprietary x86-64 network payload in a
+    // separate host process (FEX/box64), so both architectures are valid
+    // here: the bridge module itself is aarch64, the payload is x86-64.
+    return machine == EM_AARCH64 || machine == EM_X86_64;
 #else
     (void)machine;
     return true;
@@ -130,6 +133,9 @@ bool use_bridge_network_module()
 #elif defined(__WXMAC__) || defined(__APPLE__)
     return true;
 #else
+    bool forced = false;
+    if (env_flag("PJARCZAK_LINUX_BRIDGE_USE_NETWORK_MODULE", forced))
+        return forced;
     return false;
 #endif
 }

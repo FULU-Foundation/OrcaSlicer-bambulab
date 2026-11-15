@@ -720,8 +720,12 @@ nlohmann::json LinuxPluginHost::handle(const std::string& method, const nlohmann
 
     clear_thread_reply_binary();
 
-    if (method == "bridge.poll_events")
-        return drain_events(payload.value("limit", 64U));
+    if (method == "bridge.poll_events") {
+        auto events = drain_events(payload.value("limit", 64U));
+        if (events.is_array() && !events.empty())
+            host_log_json("bridge.poll_events", events);
+        return events;
+    }
 
     if (method == "bridge.ping")
         return {{"ok", true}, {"value", "pong"}};
@@ -1174,7 +1178,7 @@ nlohmann::json LinuxPluginHost::handle(const std::string& method, const nlohmann
     if (method == "net.set_extra_http_header") { auto f = net<int (*)(void*, std::map<std::string, std::string>)>("bambu_network_set_extra_http_header"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); auto headers = json_to_string_map(payload.value("headers", nlohmann::json::object())); const int ret = f(a, headers); nlohmann::json r{{"ok", true}, {"value", ret}, {"headers", headers}}; host_log_json("net.set_extra_http_header", r); return r; }
     if (method == "net.get_my_message") { auto f = net<int (*)(void*, int, int, int, unsigned int*, std::string*)>("bambu_network_get_my_message"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); unsigned int http_code = 0; std::string http_body; const int ret = f(a, payload.value("type", 0), payload.value("after", 0), payload.value("limit", 20), &http_code, &http_body); return {{"ok", true}, {"value", ret}, {"http_code", http_code}, {"http_body", http_body}}; }
     if (method == "net.check_user_task_report") { auto f = net<int (*)(void*, int*, bool*)>("bambu_network_check_user_task_report"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); int task_id = 0; bool printable = false; const int ret = f(a, &task_id, &printable); return {{"ok", true}, {"value", ret}, {"task_id", task_id}, {"printable", printable}}; }
-    if (method == "net.get_user_print_info") { auto f = net<int (*)(void*, unsigned int*, std::string*)>("bambu_network_get_user_print_info"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); unsigned int http_code = 0; std::string http_body; const int ret = f(a, &http_code, &http_body); return {{"ok", true}, {"value", ret}, {"http_code", http_code}, {"http_body", http_body}}; }
+    if (method == "net.get_user_print_info") { auto f = net<int (*)(void*, unsigned int*, std::string*)>("bambu_network_get_user_print_info"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); unsigned int http_code = 0; std::string http_body; const int ret = f(a, &http_code, &http_body); auto r = nlohmann::json{{"ok", true}, {"value", ret}, {"http_code", http_code}, {"http_body", http_body}}; host_log_json("net.get_user_print_info", r); return r; }
     if (method == "net.get_user_tasks") { auto f = net<int (*)(void*, TaskQueryParams, std::string*)>("bambu_network_get_user_tasks"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); auto params = task_query_from_json(payload.value("params", nlohmann::json::object())); std::string http_body; const int ret = f(a, params, &http_body); return {{"ok", true}, {"value", ret}, {"http_body", http_body}}; }
     if (method == "net.get_subtask_info") { auto f = net<int (*)(void*, std::string, std::string*, unsigned int*, std::string*)>("bambu_network_get_subtask_info"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); std::string task_json; unsigned int http_code = 0; std::string http_body; const int ret = f(a, payload.value("subtask_id", std::string()), &task_json, &http_code, &http_body); return {{"ok", true}, {"value", ret}, {"task_json", task_json}, {"http_code", http_code}, {"http_body", http_body}}; }
     if (method == "net.get_slice_info") { auto f = net<int (*)(void*, std::string, std::string, int, std::string*)>("bambu_network_get_slice_info"); auto a = lookup_agent(); if (!f || !a) return not_supported(method); std::string slice_json; const int ret = f(a, payload.value("project_id", std::string()), payload.value("profile_id", std::string()), payload.value("plate_index", 0), &slice_json); return {{"ok", true}, {"value", ret}, {"slice_json", slice_json}}; }

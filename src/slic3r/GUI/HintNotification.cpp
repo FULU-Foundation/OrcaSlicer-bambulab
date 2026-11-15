@@ -830,6 +830,10 @@ void NotificationManager::HintNotification::init()
 	if (is_finished())
 		return;
 
+	// See PopNotification::init(): ImGui text metrics need a built font atlas.
+	if (ImGui::GetCurrentContext() == nullptr || !ImGui::GetIO().Fonts->IsBuilt())
+		return;
+
 	count_spaces();
 	count_lines();
 

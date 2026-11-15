@@ -114,6 +114,9 @@ BridgeTunnel* find_remote_tunnel(std::int64_t remote_handle)
 
 void dispatch_agent_event(std::int64_t remote_handle, const std::string& name, const nlohmann::json& payload)
 {
+    if (!payload.is_object())
+        return;
+
     BridgeAgent* agent = find_remote_agent(remote_handle);
     if (!agent)
         return;

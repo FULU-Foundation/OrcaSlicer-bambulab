@@ -24,6 +24,8 @@ if(IS_CROSS_COMPILE AND APPLE)
             -DPREFER_EXTERNAL_ZLIB=ON
             -DDEACTIVATE_SSE2=ON
             -DDEACTIVATE_AVX2=ON
+            # c-blosc 1.17 typedefs bool, which is a keyword in C23 (GCC 15+ default).
+            -DCMAKE_C_FLAGS:STRING=-std=gnu11
     )
 else()
     orcaslicer_add_cmake_project(Blosc
@@ -41,6 +43,8 @@ else()
             -DBUILD_TESTS=OFF 
             -DBUILD_BENCHMARKS=OFF 
             -DPREFER_EXTERNAL_ZLIB=ON
+            # c-blosc 1.17 typedefs bool, which is a keyword in C23 (GCC 15+ default).
+            -DCMAKE_C_FLAGS:STRING=-std=gnu11
     )
 endif()
 if (MSVC)

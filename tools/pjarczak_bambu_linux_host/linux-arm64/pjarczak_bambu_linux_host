@@ -1,0 +1,56 @@
+#!/bin/sh
+# Launch the x86-64 Bambu network plug-in host inside the FEX/muvm microVM and
+# bridge its stdio to the native arm64 OrcaSlicer process over TCP.
+#
+# The guest cannot share pipes or FIFOs with the host, but passt maps the
+# guest's default-gateway address back to the host's 127.0.0.1, so a plain
+# TCP relay works in both directions.
+set -e
+
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ROOTFS="${PJARCZAK_FEX_ROOTFS:-$HOME/.local/opt/orcaslicer-fex/ubuntu.erofs}"
+HOST="$DIR/pjarczak_bambu_linux_host_abi1"
+RELAY="$DIR/bridge_relay.py"
+LOG="${TMPDIR:-/tmp}/pjarczak-bridge-host.log"
+
+# The app normally supplies these; fall back to the installed layout so the
+# wrapper can also be exercised by hand.
+: "${PJARCZAK_BAMBU_PLUGIN_DIR:=$DIR}"
+: "${PJARCZAK_BAMBU_NETWORK_SO:=$DIR/runtime/libbambu_networking.so}"
+: "${PJARCZAK_BAMBU_SOURCE_SO:=$DIR/runtime/libBambuSource.so}"
+export PJARCZAK_BAMBU_PLUGIN_DIR PJARCZAK_BAMBU_NETWORK_SO PJARCZAK_BAMBU_SOURCE_SO
+
+# The plug-in's libcurl needs the CA bundle; muvm does not forward the host
+# environment into the guest, so pass it explicitly.
+: "${SSL_CERT_FILE:=$HOME/.local/opt/orcaslicer-bambulab/resources/cert/ca-certificates.crt}"
+: "${CURL_CA_BUNDLE:=$SSL_CERT_FILE}"
+: "${SSL_CERT_DIR:=/etc/ssl/certs}"
+export SSL_CERT_FILE CURL_CA_BUNDLE SSL_CERT_DIR
+
+GW=$(ip route 2>/dev/null | awk '/^default/ {print $3; exit}')
+[ -n "$GW" ] || GW=192.168.0.1
+
+PORT=$(( 20000 + ($$ % 20000) ))
+
+# Host side: native app stdio <-> TCP listener on the host loopback.
+# A non-interactive shell redirects a background job's stdin from /dev/null,
+# which would make socat see EOF immediately, so keep private copies of the
+# wrapper's stdin/stdout and hand those to socat explicitly.
+exec 8<&0 9>&1
+socat - TCP-LISTEN:"$PORT",bind=127.0.0.1,reuseaddr <&8 >&9 2>>"$LOG" &
+SOCAT_PID=$!
+exec 8<&- 9>&-
+trap 'kill "$SOCAT_PID" 2>/dev/null || true' EXIT INT TERM
+
+# Guest side: connect back through the passt host-loopback mapping and run the
+# x86-64 host with the socket as its stdin/stdout.
+python3 "$DIR/bridge_exec.py" muvm -f "$ROOTFS" \
+    -e PJARCZAK_BAMBU_PLUGIN_DIR="$PJARCZAK_BAMBU_PLUGIN_DIR" \
+    -e PJARCZAK_BAMBU_NETWORK_SO="$PJARCZAK_BAMBU_NETWORK_SO" \
+    -e PJARCZAK_BAMBU_SOURCE_SO="$PJARCZAK_BAMBU_SOURCE_SO" \
+    -e PJARCZAK_EXPECTED_BAMBU_NETWORK_VERSION="$PJARCZAK_EXPECTED_BAMBU_NETWORK_VERSION" \
+    -e SSL_CERT_FILE="$SSL_CERT_FILE" \
+    -e CURL_CA_BUNDLE="$CURL_CA_BUNDLE" \
+    -e SSL_CERT_DIR="$SSL_CERT_DIR" \
+    -- /usr/bin/python3 "$RELAY" "$PORT" "$HOST" "$LOG" "$GW" \
+    </dev/null >>"$LOG" 2>&1
