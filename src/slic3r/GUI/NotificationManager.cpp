@@ -579,6 +579,13 @@ void NotificationManager::PopNotification::init()
 	if (is_finished())
 		return;
 
+	// ImGui font metrics are only available after the first frame has been rendered.
+	// Notifications can be created or updated before the 3D canvas is initialized
+	// (e.g. the missing-network-plugin hint), so leave the state untouched here and
+	// let render() initialize the notification once the font atlas exists.
+	if (ImGui::GetCurrentContext() == nullptr || !ImGui::GetIO().Fonts->IsBuilt())
+		return;
+
 	count_spaces();
 	count_lines();
 
