@@ -123,9 +123,15 @@ bool read_request_frame(const RawRpcFrame& raw, RpcFrame& frame, std::string& er
     if (!read_json_frame(raw, payload, error))
         return false;
 
+    if (!payload.is_object()) {
+        error = "request payload is not a json object";
+        return false;
+    }
+
     frame.id = raw.id;
     frame.method = payload.value("method", std::string());
-    frame.payload = payload.contains("payload") ? payload["payload"] : nlohmann::json::object();
+    const auto payload_it = payload.find("payload");
+    frame.payload = (payload_it != payload.end() && !payload_it->is_null()) ? *payload_it : nlohmann::json::object();
     return true;
 }
 

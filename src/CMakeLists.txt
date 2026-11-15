@@ -120,6 +120,10 @@ endif (MINGW)
 if (NOT WIN32 AND NOT APPLE)
     # Binary name on unix like systems (Linux, Unix)
     set_target_properties(OrcaSlicer PROPERTIES OUTPUT_NAME "orca-slicer")
+    # The PJarczak Linux bridge is a dlopen()ed module that references symbols
+    # from the executable (for example BBLModelTask), so export the
+    # executable's dynamic symbols for the plug-in.
+    set_target_properties(OrcaSlicer PROPERTIES ENABLE_EXPORTS ON)
     set(SLIC3R_APP_CMD "orca-slicer")
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/dev-utils/platform/unix/build_linux_image.sh.in ${CMAKE_CURRENT_BINARY_DIR}/build_linux_image.sh USE_SOURCE_PERMISSIONS @ONLY)
 endif ()

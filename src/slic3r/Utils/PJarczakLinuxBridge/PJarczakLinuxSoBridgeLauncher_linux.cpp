@@ -49,8 +49,10 @@ LaunchSpec build_default_launch_spec()
     spec.argv = {host_path.string()};
     spec.env = {
         {"PJARCZAK_BAMBU_PLUGIN_DIR", plugin_dir.string()},
-        {"PJARCZAK_BAMBU_NETWORK_SO", (plugin_dir / linux_network_library_name()).string()},
-        {"PJARCZAK_BAMBU_SOURCE_SO", (plugin_dir / linux_source_library_name()).string()}
+        // The real proprietary payload lives in runtime/ because the bridge
+        // module itself is installed as libbambu_networking.so next to it.
+        {"PJARCZAK_BAMBU_NETWORK_SO", (plugin_dir / "runtime" / linux_network_library_name()).string()},
+        {"PJARCZAK_BAMBU_SOURCE_SO", (plugin_dir / "runtime" / linux_source_library_name()).string()}
     };
     return spec;
 }

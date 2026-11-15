@@ -45,7 +45,8 @@ function(add_host_variant target_name abi_value)
         ${CMAKE_DL_LIBS}
     )
     if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        target_link_options(${target_name} PRIVATE -static-libstdc++ -static-libgcc)
+        # Keep libstdc++ dynamic: the x86-64 network plug-in is loaded with
+        # dlopen() and must resolve its C++ symbols against the same runtime.
     endif()
 endfunction()
 
