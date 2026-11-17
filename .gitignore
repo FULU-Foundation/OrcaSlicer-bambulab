@@ -27,6 +27,7 @@ install_*
 !tools/pjarczak_bambu_runtime/wsl/install_runtime.ps1
 !tools/pjarczak_bambu_runtime/wsl/install_runtime.cmd
 build_*/
+tools/pjarczak_bambu_linux_host/.build-linux-host/
 SVG
 src/OrcaSlicer-doc/
 .idea/
