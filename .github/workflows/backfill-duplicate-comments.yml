@@ -4,11 +4,6 @@ description: Triggers duplicate detection for old issues that don't have duplica
 on:
   workflow_dispatch:
     inputs:
-      days_back:
-        description: 'How many days back to look for old issues'
-        required: false
-        default: '90'
-        type: string
       dry_run:
         description: 'Dry run mode (true to only log what would be done)'
         required: false
@@ -40,5 +35,6 @@ jobs:
         run: bun run scripts/backfill-duplicate-comments.ts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DAYS_BACK: ${{ inputs.days_back }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPOSITORY_NAME: ${{ github.event.repository.name }}
           DRY_RUN: ${{ inputs.dry_run }}
