@@ -450,8 +450,13 @@ export CMAKE_POLICY_VERSION_MINIMUM=3.5
 
 DISTRIBUTION=$(awk -F= '/^ID=/ {print $2}' /etc/os-release | tr -d '"')
 DISTRIBUTION_LIKE=$(awk -F= '/^ID_LIKE=/ {print $2}' /etc/os-release | tr -d '"')
+# A script named for the distribution's exact ID= wins over the family
+# remapping below (see scripts/linux.d/README.md) — e.g. CachyOS has its
+# own scripts/linux.d/cachyos but reports ID_LIKE=arch.
+if [ -f "./scripts/linux.d/${DISTRIBUTION}" ] ; then
+    :
 # Check for direct distribution match to Ubuntu/Debian
-if [ "${DISTRIBUTION}" == "ubuntu" ] || [ "${DISTRIBUTION}" == "linuxmint" ] ; then
+elif [ "${DISTRIBUTION}" == "ubuntu" ] || [ "${DISTRIBUTION}" == "linuxmint" ] ; then
     DISTRIBUTION="debian"
 # Check if distribution is Debian/Ubuntu-like based on ID_LIKE
 elif [[ "${DISTRIBUTION_LIKE}" == *"debian"* ]] || [[ "${DISTRIBUTION_LIKE}" == *"ubuntu"* ]] ; then
