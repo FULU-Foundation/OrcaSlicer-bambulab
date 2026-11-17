@@ -63,7 +63,7 @@ jobs:
       - name: Upload linux host runtime artifact
         uses: actions/upload-artifact@v7
         with:
-          name: linux_host_runtime_${{ github.sha }}
+          name: linux_host_runtime_windows_${{ github.sha }}
           path: ./linux_host_runtime_${{ github.sha }}.tar.gz
           if-no-files-found: error
 
@@ -116,7 +116,7 @@ jobs:
       - name: Download linux host runtime artifact
         uses: actions/download-artifact@v8
         with:
-          name: linux_host_runtime_${{ github.sha }}
+          name: linux_host_runtime_windows_${{ github.sha }}
           path: ${{ github.workspace }}/linux_host_runtime_artifact
 
       - name: Extract linux host runtime artifact on Windows

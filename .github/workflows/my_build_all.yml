@@ -56,8 +56,25 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release-files
-          find release-artifacts -type f -print0 | while IFS= read -r -d '' file; do
-            cp "$file" release-files/"$(basename "$file")"
+          # Fail closed on a basename collision: two different
+          # files with the same name must never silently become
+          # one release asset. Byte-identical duplicates are kept
+          # once and logged; differing duplicates stop the publish
+          # with both hashes shown, and no release is created.
+          find release-artifacts -type f -print0 | sort -z | while IFS= read -r -d '' file; do
+            base="$(basename "$file")"
+            dest="release-files/$base"
+            if [[ -e "$dest" ]]; then
+              if cmp -s "$file" "$dest"; then
+                echo "duplicate (byte-identical, kept once): $base"
+              else
+                echo "ERROR: basename collision with different contents: $base" >&2
+                sha256sum "$dest" "$file" >&2
+                exit 1
+              fi
+            else
+              cp "$file" "$dest"
+            fi
           done
           ls -lah release-files
 
