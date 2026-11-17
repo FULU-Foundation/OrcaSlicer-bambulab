@@ -57,7 +57,7 @@ async function triggerDedupeWorkflow(
   }
 
   await githubRequest(
-    `/repos/${owner}/${repo}/actions/workflows/claude-dedupe-issues.yml/dispatches`,
+    `/repos/${owner}/${repo}/actions/workflows/dedupe-issues.yml/dispatches`,
     token,
     'POST',
     {
@@ -86,8 +86,8 @@ Environment Variables:
   }
   console.log("[DEBUG] GitHub token found");
 
-  const owner = "OrcaSlicer";
-  const repo = "OrcaSlicer";
+  const owner = process.env.GITHUB_REPOSITORY_OWNER || "OrcaSlicer";
+  const repo = process.env.GITHUB_REPOSITORY_NAME || "OrcaSlicer";
   const dryRun = process.env.DRY_RUN !== "false";
   const maxIssueNumber = parseInt(process.env.MAX_ISSUE_NUMBER || "11000", 10);
   const minIssueNumber = parseInt(process.env.MIN_ISSUE_NUMBER || "1", 10);
