@@ -24,6 +24,8 @@ export REQUIRED_DEV_PACKAGES=(
     wayland-protocols
     webkit2gtk
     wget
+    yasm
+    nasm
 )
 
 if [[ -n "$UPDATE_LIB" ]]
