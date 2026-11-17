@@ -9,6 +9,7 @@ on:
 
 jobs:
   assign:
+    if: github.repository == 'OrcaSlicer/OrcaSlicer'
     permissions:
       issues: write
     runs-on: ubuntu-latest
