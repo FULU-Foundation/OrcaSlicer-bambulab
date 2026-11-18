@@ -171,6 +171,9 @@ if ([string]::IsNullOrWhiteSpace($DistroName)) {
     if (Test-Path $distroFile) {
         $DistroName = (Get-Content $distroFile -Raw).Trim()
     }
+    if ([string]::IsNullOrWhiteSpace($DistroName) -and $env:PJARCZAK_WSL_DISTRO) {
+        $DistroName = $env:PJARCZAK_WSL_DISTRO.Trim()
+    }
 }
 if ([string]::IsNullOrWhiteSpace($DistroName)) {
     throw 'Missing distro name. Set PJARCZAK_WSL_DISTRO or provide pjarczak_wsl_distro.txt.'
