@@ -1067,6 +1067,31 @@ nlohmann::json LinuxPluginHost::handle(const std::string& method, const nlohmann
         unregister_job(job_id);
         return {{"ok", true}, {"value", ret}, {"job_id", job_id}};
     }
+    if (method == "net.start_publish") {
+        auto f = net<int (*)(void*, BBL::PublishParams, OnUpdateStatusFn, WasCancelledFn, std::string*)>("bambu_network_start_publish");
+        auto a = lookup_agent();
+        if (!f || !a) return not_supported(method);
+        const auto job_id = payload.value("client_job_id", 0LL);
+        const auto params_json = payload.value("params", nlohmann::json::object());
+        auto job = std::make_shared<HostJobState>();
+        job->job_id = job_id;
+        job->agent_handle = agent_id;
+        job->kind = "start_publish";
+        register_job(job);
+        auto params = JsonBridge::publish_params_from_json(params_json);
+        params.project_3mf_file = windows_path_to_wsl(std::move(params.project_3mf_file));
+        params.config_filename = windows_path_to_wsl(std::move(params.config_filename));
+        std::string out;
+        const int ret = f(a, params,
+            [this, job](int status, int code, std::string msg) {
+                queue_event(job->agent_handle, "job.update_status", {{"job_id", job->job_id}, {"kind", job->kind}, {"status", status}, {"code", code}, {"msg", msg}});
+            },
+            [job]() {
+                return job->cancel_requested.load();
+            }, &out);
+        unregister_job(job_id);
+        return {{"ok", true}, {"value", ret}, {"job_id", job_id}, {"out", out}};
+    }
 
     if (method == "net.start_local_print_with_record") {
         auto f = net<int (*)(void*, BBL::PrintParams, OnUpdateStatusFn, WasCancelledFn, OnWaitFn)>("bambu_network_start_local_print_with_record");
