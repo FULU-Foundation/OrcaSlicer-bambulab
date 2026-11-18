@@ -24,6 +24,24 @@ if ([string]::IsNullOrWhiteSpace($OutputTar)) {
     $OutputTar = Join-Path $scriptDir 'windows-wsl2-rootfs.tar'
 }
 $OutputTar = [System.IO.Path]::GetFullPath($OutputTar)
+$prebuiltRootFsTar = $env:PJARCZAK_WSL_ROOTFS_TAR
+if (-not [string]::IsNullOrWhiteSpace($prebuiltRootFsTar)) {
+    $prebuiltRootFsTar = $prebuiltRootFsTar.Trim()
+    if (-not (Test-Path $prebuiltRootFsTar)) {
+        throw "Missing file from PJARCZAK_WSL_ROOTFS_TAR: $prebuiltRootFsTar"
+    }
+    $prebuiltRootFsTar = [System.IO.Path]::GetFullPath($prebuiltRootFsTar)
+    if ($prebuiltRootFsTar -ne $OutputTar) {
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $OutputTar) | Out-Null
+        Copy-Item -Force $prebuiltRootFsTar $OutputTar
+    }
+    if ((Get-Item $OutputTar).Length -le 0) {
+        throw "rootfs tar is empty: $OutputTar"
+    }
+    Write-Host "WSL rootfs created:"
+    Write-Host $OutputTar
+    exit 0
+}
 
 if ((Test-Path $OutputTar) -and -not $Force) {
     Write-Host "Rootfs already exists: $OutputTar"
