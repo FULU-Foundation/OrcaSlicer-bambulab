@@ -108,6 +108,7 @@ MethodManifestEntry{"bambu_network_get_model_mall_rating", "bambu_network_get_mo
 MethodManifestEntry{"bambu_network_get_mw_user_preference", "bambu_network_get_mw_user_preference", "callbacks", "implemented", "stable", "one-shot callback bridged with wait"},
 MethodManifestEntry{"bambu_network_get_mw_user_4ulist", "bambu_network_get_mw_user_4ulist", "callbacks", "implemented", "stable", "one-shot callback bridged with wait"},
 MethodManifestEntry{"bambu_network_get_hms_snapshot", "bambu_network_get_hms_snapshot", "callbacks", "implemented", "stable", "one-shot callback bridged with wait"},
+MethodManifestEntry{"bambu_network_get_last_error_msg", "bambu_network_get_last_error_msg", "network", "implemented", "stable", "local bridge returns its cached last error string"},
 MethodManifestEntry{"Bambu_Create", "Bambu_Create", "source", "implemented", "stable", "rpc passthrough"},
 MethodManifestEntry{"Bambu_SetLogger", "Bambu_SetLogger", "source", "implemented", "stable", "logger messages copied in host and forwarded through tunnel events"},
 MethodManifestEntry{"Bambu_Open", "Bambu_Open", "source", "implemented", "stable", "rpc passthrough"},
