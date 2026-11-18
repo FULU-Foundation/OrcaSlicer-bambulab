@@ -824,6 +824,14 @@
     "notes": "one-shot callback bridged with wait"
   },
   {
+    "symbol": "bambu_network_get_last_error_msg",
+    "exported_name": "bambu_network_get_last_error_msg",
+    "area": "network",
+    "status": "implemented",
+    "stability": "stable",
+    "notes": "local bridge returns its cached last error string"
+  },
+  {
     "symbol": "Bambu_Create",
     "exported_name": "Bambu_Create",
     "area": "source",
