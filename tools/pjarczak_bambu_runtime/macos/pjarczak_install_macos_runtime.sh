@@ -3,7 +3,6 @@ set -euo pipefail
 
 PACKAGE_DIR=""
 PLUGIN_DIR=""
-PLUGIN_CACHE_DIR=""
 REPLACE_EXISTING=0
 
 while [[ $# -gt 0 ]]; do
@@ -14,10 +13,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         -PluginDir)
             PLUGIN_DIR="${2:-}"
-            shift 2
-            ;;
-        -PluginCacheDir)
-            PLUGIN_CACHE_DIR="${2:-}"
             shift 2
             ;;
         -ReplaceExisting)

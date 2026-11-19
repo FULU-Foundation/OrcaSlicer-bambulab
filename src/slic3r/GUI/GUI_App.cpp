@@ -3314,6 +3314,7 @@ static void pjarczak_verify_or_install_macos_bridge_runtime(const boost::filesys
     (void)plugin_folder;
     (void)plugin_cache_dir;
 #else
+    (void)plugin_cache_dir;
     if (!Slic3r::PJarczakLinuxBridge::enabled())
         return;
 
@@ -3325,13 +3326,11 @@ static void pjarczak_verify_or_install_macos_bridge_runtime(const boost::filesys
     }
 
     const wxString plugin_dir_wx = from_u8(plugin_folder.string());
-    const wxString cache_dir_wx = from_u8(plugin_cache_dir.string());
     const wxString verify_cmd = wxString::Format(
-        "/bin/bash %s -PackageDir %s -PluginDir %s -PluginCacheDir %s -AllowMissingLinuxPlugin",
+        "/bin/bash %s -PackageDir %s -PluginDir %s -AllowMissingLinuxPlugin",
         pjarczak_quote_posix_arg(from_u8(verify_script.string())),
         pjarczak_quote_posix_arg(plugin_dir_wx),
-        pjarczak_quote_posix_arg(plugin_dir_wx),
-        pjarczak_quote_posix_arg(cache_dir_wx));
+        pjarczak_quote_posix_arg(plugin_dir_wx));
 
     wxArrayString verify_out;
     wxArrayString verify_err;
@@ -3349,11 +3348,10 @@ static void pjarczak_verify_or_install_macos_bridge_runtime(const boost::filesys
         return;
 
     const wxString install_cmd = wxString::Format(
-        "/bin/bash %s -PackageDir %s -PluginDir %s -PluginCacheDir %s -ReplaceExisting",
+        "/bin/bash %s -PackageDir %s -PluginDir %s -ReplaceExisting",
         pjarczak_quote_posix_arg(from_u8(install_script.string())),
         pjarczak_quote_posix_arg(plugin_dir_wx),
-        pjarczak_quote_posix_arg(plugin_dir_wx),
-        pjarczak_quote_posix_arg(cache_dir_wx));
+        pjarczak_quote_posix_arg(plugin_dir_wx));
 
     wxArrayString install_out;
     wxArrayString install_err;
