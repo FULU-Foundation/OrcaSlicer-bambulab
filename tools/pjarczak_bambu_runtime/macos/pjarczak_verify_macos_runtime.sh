@@ -116,16 +116,24 @@ require_file "$PLUGIN_DIR/pjarczak_bambu_linux_host_abi0" "pjarczak_bambu_linux_
 require_file "$PLUGIN_DIR/ca-certificates.crt" "ca-certificates.crt"
 require_file "$PLUGIN_DIR/slicer_base64.cer" "slicer_base64.cer"
 
-require_file "$RUNTIME_DIR/libbambu_networking.so" "runtime/libbambu_networking.so"
-require_file "$RUNTIME_DIR/libBambuSource.so" "runtime/libBambuSource.so"
+if [[ "$ALLOW_MISSING_LINUX_PLUGIN" -eq 0 || -f "$PLUGIN_DIR/libbambu_networking.so" ]]; then
+    require_file "$RUNTIME_DIR/libbambu_networking.so" "runtime/libbambu_networking.so"
+fi
+if [[ "$ALLOW_MISSING_LINUX_PLUGIN" -eq 0 || -f "$PLUGIN_DIR/libBambuSource.so" ]]; then
+    require_file "$RUNTIME_DIR/libBambuSource.so" "runtime/libBambuSource.so"
+fi
 require_file "$RUNTIME_DIR/pjarczak_bambu_linux_host" "runtime/pjarczak_bambu_linux_host"
 require_file "$RUNTIME_DIR/pjarczak_bambu_linux_host_abi1" "runtime/pjarczak_bambu_linux_host_abi1"
 require_file "$RUNTIME_DIR/pjarczak_bambu_linux_host_abi0" "runtime/pjarczak_bambu_linux_host_abi0"
 require_file "$RUNTIME_DIR/ca-certificates.crt" "runtime/ca-certificates.crt"
 require_file "$RUNTIME_DIR/slicer_base64.cer" "runtime/slicer_base64.cer"
 
-compare_required_file "$PLUGIN_DIR/libbambu_networking.so" "$RUNTIME_DIR/libbambu_networking.so" "libbambu_networking.so"
-compare_required_file "$PLUGIN_DIR/libBambuSource.so" "$RUNTIME_DIR/libBambuSource.so" "libBambuSource.so"
+if [[ "$ALLOW_MISSING_LINUX_PLUGIN" -eq 0 || -f "$PLUGIN_DIR/libbambu_networking.so" ]]; then
+    compare_required_file "$PLUGIN_DIR/libbambu_networking.so" "$RUNTIME_DIR/libbambu_networking.so" "libbambu_networking.so"
+fi
+if [[ "$ALLOW_MISSING_LINUX_PLUGIN" -eq 0 || -f "$PLUGIN_DIR/libBambuSource.so" ]]; then
+    compare_required_file "$PLUGIN_DIR/libBambuSource.so" "$RUNTIME_DIR/libBambuSource.so" "libBambuSource.so"
+fi
 compare_required_file "$PLUGIN_DIR/pjarczak_bambu_linux_host" "$RUNTIME_DIR/pjarczak_bambu_linux_host" "pjarczak_bambu_linux_host"
 compare_required_file "$PLUGIN_DIR/pjarczak_bambu_linux_host_abi1" "$RUNTIME_DIR/pjarczak_bambu_linux_host_abi1" "pjarczak_bambu_linux_host_abi1"
 compare_required_file "$PLUGIN_DIR/pjarczak_bambu_linux_host_abi0" "$RUNTIME_DIR/pjarczak_bambu_linux_host_abi0" "pjarczak_bambu_linux_host_abi0"
