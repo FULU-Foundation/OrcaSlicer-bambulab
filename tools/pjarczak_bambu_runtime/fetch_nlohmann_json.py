@@ -14,7 +14,7 @@ URLS = [
 
 
 def default_dest() -> pathlib.Path:
-    return pathlib.Path(__file__).resolve().parents[2] / "src" / "nlohmann" / "json.hpp"
+    return pathlib.Path(__file__).resolve().parents[2] / "deps_src" / "nlohmann" / "json.hpp"
 
 
 def valid_header(text: str) -> bool:
