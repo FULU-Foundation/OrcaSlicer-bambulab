@@ -46,17 +46,6 @@ function Copy-IfExists([string]$Source, [string]$Destination) {
     }
 }
 
-function Sync-Directory([string]$SourceDir, [string]$DestinationDir) {
-    if (!(Test-Path $SourceDir)) {
-        return
-    }
-    if (Test-Path $DestinationDir) {
-        Remove-Item -Recurse -Force $DestinationDir
-    }
-    New-Item -ItemType Directory -Force -Path $DestinationDir | Out-Null
-    Copy-Item -Recurse -Force (Join-Path $SourceDir '*') $DestinationDir
-}
-
 function Resolve-DistroName([string]$Dir, [string]$Current) {
     if (-not [string]::IsNullOrWhiteSpace($Current)) {
         return $Current
